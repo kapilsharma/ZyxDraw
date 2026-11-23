@@ -2,7 +2,7 @@ import type { FontSpec, TextMeasurer } from "../core";
 
 /** Measures text with the real font through a hidden canvas (plugin only, needs the DOM). */
 export function createCanvasMeasurer(): TextMeasurer {
-  const canvas = activeDocument.createElement("canvas");
+  const canvas = createEl("canvas");
   const ctx = canvas.getContext("2d");
   return {
     measure(text: string, font: FontSpec) {

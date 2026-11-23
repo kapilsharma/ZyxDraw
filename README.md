@@ -506,6 +506,15 @@ Commands, or the file menu of a `.zyxd` file:
 - **Export as JSON Canvas**: boxes, text, groups and connected lines become an Obsidian canvas. Other shapes are skipped with a notice.
 - **Copy as SVG / PNG**: to the clipboard.
 
+### Clipboard use
+
+ZyxDraw uses the system clipboard only when you ask it to:
+
+- It **writes** to the clipboard when you copy or cut shapes (`Ctrl+C`, `Ctrl+X`, or the right-click menu), or use **Copy as SVG / PNG**.
+- It **reads** the clipboard only when you paste into the drawing (`Ctrl+V`, or **Paste** in the right-click menu).
+
+Nothing is read in the background, and nothing leaves your device.
+
 ## Settings
 
 - Default view (split, text, drawing).

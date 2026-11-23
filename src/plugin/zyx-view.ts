@@ -221,7 +221,7 @@ export class ZyxView extends TextFileView {
     const save = () => void this.plugin.saveSettings();
 
     const applySource = () => {
-      sourceEl.style.flex = `0 0 ${s.sourceWidth * 100}%`;
+      sourceEl.setCssProps({ "--zyxdraw-source-width": `${s.sourceWidth * 100}%` });
     };
     createSplitter(this.contentEl, previewEl, {
       axis: "x",
@@ -241,7 +241,7 @@ export class ZyxView extends TextFileView {
 
     const props = this.properties!.el;
     const applyProps = () => {
-      props.style.height = `${s.propertiesHeight * 100}%`;
+      props.setCssProps({ "--zyxdraw-properties-height": `${s.propertiesHeight * 100}%` });
     };
     this.propertiesSplitter = createSplitter(previewEl, props, {
       axis: "y",

@@ -141,7 +141,7 @@ export const DEFAULT_FRAME = { x: 0, y: 0, width: 1000, height: 600 };
 export function resolve(tree: SyntaxTree, diags: Diagnostics, options: ResolveOptions = {}): Model {
   const libs: Libraries = {
     mainPath: options.path ?? "",
-    sources: options.libraries ?? new Map(),
+    sources: options.libraries ?? new Map<string, string>(),
     scopes: new Map(),
     loading: [],
   };

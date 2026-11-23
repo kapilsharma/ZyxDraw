@@ -39,10 +39,14 @@
 }
 
 /* ---- view layout and modes ---- */
+/* More specific than Obsidian's padding on a view's content. */
+.workspace-leaf-content .view-content.zyxdraw-view {
+  padding: 0;
+}
+
 .zyxdraw-view {
   display: flex;
   height: 100%;
-  padding: 0 !important;
   overflow: hidden;
 }
 
@@ -61,9 +65,13 @@
   overflow: auto;
 }
 
-/* The text pane width is set from the drag handle; alone, it fills the view. */
+/* The text pane width is set from the drag handle (--zyxdraw-source-width); alone, it fills the view. */
+.zyxdraw-view .zyxdraw-source {
+  flex: 0 0 var(--zyxdraw-source-width, 50%);
+}
+
 .zyxdraw-view.mode-source .zyxdraw-source {
-  flex: 1 1 0 !important;
+  flex: 1 1 0;
 }
 
 /* Wrapping long lines (command "Toggle text wrapping"), enforced here as well in case a theme
@@ -127,7 +135,8 @@
   display: none;
 }
 
-/* While dragging: keep the resize cursor, and no text selection anywhere. */
+/* While dragging: keep the resize cursor, and no text selection anywhere. `!important` because
+   it must win over every element's own cursor, in Obsidian and in the drawing. */
 body.zyxdraw-resizing-x,
 body.zyxdraw-resizing-x * {
   cursor: col-resize !important;
@@ -306,15 +315,17 @@ body.zyxdraw-resizing-y * {
   background-color: var(--interactive-accent-hover);
 }
 
-/* Hand tool: grab cursor everywhere on the stage, also over shapes. */
+/* Hand tool: grab cursor everywhere on the stage, also over shapes and handles (more specific than their own cursors). */
 .zyxdraw-stage.is-hand,
-.zyxdraw-stage.is-hand * {
-  cursor: grab !important;
+.zyxdraw-stage.is-hand *,
+.zyxdraw-stage.is-hand .zyxdraw-svg * {
+  cursor: grab;
 }
 
 .zyxdraw-stage.is-panning,
-.zyxdraw-stage.is-panning * {
-  cursor: grabbing !important;
+.zyxdraw-stage.is-panning *,
+.zyxdraw-stage.is-panning .zyxdraw-svg * {
+  cursor: grabbing;
 }
 
 .zyxdraw-stage {
@@ -332,9 +343,21 @@ body.zyxdraw-resizing-y * {
 /* The frame is drawn on white so the drawing's own colors show as they will export. */
 .zyxdraw-svg {
   display: block;
+  height: auto;
   background: white;
   box-shadow: 0 0 0 1px var(--background-modifier-border);
   user-select: none;
+}
+
+/* Fit to the pane, or zoomed to a width set from the code (--zyxdraw-svg-width). */
+.zyxdraw-svg.is-fit {
+  width: 100%;
+  max-width: 100%;
+}
+
+.zyxdraw-svg.is-zoomed {
+  width: var(--zyxdraw-svg-width);
+  max-width: none;
 }
 
 /* Infinite canvas: no frame; the board fills the pane (no padding at its edges). */
@@ -342,7 +365,7 @@ body.zyxdraw-resizing-y * {
   box-shadow: none;
 }
 
-.zyxdraw-stage:has(> .zyxdraw-svg.is-infinite) {
+.zyxdraw-stage.is-infinite {
   padding: 0;
   background: white;
 }
@@ -522,6 +545,8 @@ body.zyxdraw-resizing-y * {
 /* Height set from the drag handle above it (a fraction of the drawing pane). */
 .zyxdraw-properties {
   flex: 0 0 auto;
+  /* Set from the drag handle. */
+  height: var(--zyxdraw-properties-height, 35%);
   min-height: 3em;
   overflow: auto;
   /* Room to scroll the last fields above Obsidian's status bar, which floats over the pane. */

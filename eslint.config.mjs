@@ -1,8 +1,20 @@
-import tseslint from "typescript-eslint";
+import { defineConfig, globalIgnores } from "eslint/config";
+import obsidianmd from "eslint-plugin-obsidianmd";
 
-export default [
-  { ignores: ["main.js", "node_modules/**"] },
-  ...tseslint.configs.recommended,
+export default defineConfig([
+  // Build output and the Node build script are not plugin code.
+  globalIgnores(["node_modules", "main.js", "esbuild.config.mjs"]),
+  // The same rules as Obsidian's community plugin review (ESLint, type-checked typescript-eslint, Obsidian rules).
+  ...obsidianmd.configs.recommended,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: {
+          allowDefaultProject: ["eslint.config.mjs", "vitest.config.ts"],
+        },
+      },
+    },
+  },
   {
     // Core must stay pure: no Obsidian, no editor, no DOM, no file system.
     // See Docs/dev/Architecture.md.
@@ -22,4 +34,4 @@ export default [
       "no-restricted-globals": ["error", "document", "window", "navigator", "localStorage"],
     },
   },
-];
+]);

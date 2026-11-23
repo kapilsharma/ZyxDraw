@@ -262,7 +262,7 @@ export class DrawingEditor {
     const x = vb?.x ?? 0;
     const y = vb?.y ?? 0;
     const { minor, major } = gridSteps(this.pxPerUnit());
-    const g = svg.ownerDocument.createElementNS(SVG_NS, "g") as SVGGElement;
+    const g = svg.ownerDocument.createElementNS(SVG_NS, "g");
     g.classList.add("zyxdraw-grid");
     for (const [d, cls] of [
       [gridPath(x, y, w, h, minor, major), "is-minor"],
@@ -345,7 +345,7 @@ export class DrawingEditor {
   private draftLayer(): { g: SVGGElement; add: (tag: string, attrs: Record<string, string | number>, cls: string) => void; r: number } | null {
     if (!this.svg) return null;
     const doc = this.svg.ownerDocument;
-    const g = doc.createElementNS(SVG_NS, "g") as SVGGElement;
+    const g = doc.createElementNS(SVG_NS, "g");
     g.classList.add("zyxdraw-draft", "zyxdraw-overlay");
     const add = (tag: string, attrs: Record<string, string | number>, cls: string) => {
       const el = doc.createElementNS(SVG_NS, tag);
@@ -533,14 +533,14 @@ export class DrawingEditor {
   private trackMouse(e: { clientX: number; clientY: number } | null): void {
     if (!e || !this.host.guideOn("coordinates")) {
       this.mouse = null;
-      if (this.mouseFrame) cancelAnimationFrame(this.mouseFrame);
+      if (this.mouseFrame) window.cancelAnimationFrame(this.mouseFrame);
       this.mouseFrame = 0;
       this.host.showCoordinates(null);
       return;
     }
     this.mouse = { clientX: e.clientX, clientY: e.clientY };
     if (!this.mouseFrame) {
-      this.mouseFrame = requestAnimationFrame(() => {
+      this.mouseFrame = window.requestAnimationFrame(() => {
         this.mouseFrame = 0;
         if (this.mouse) this.host.showCoordinates(this.coordinatesText(this.mouse));
       });
@@ -624,6 +624,7 @@ export class DrawingEditor {
       this.zoom = null;
     }
     this.infinite = infinite;
+    this.stage.toggleClass("is-infinite", infinite);
     this.stage.empty();
     const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
     if (doc.querySelector("parsererror")) {
@@ -783,7 +784,7 @@ export class DrawingEditor {
       if (!swatch) continue;
       const css = t && shape ? cssPaint(paintOf(shape, which), t.scene.gradients ?? []) : null;
       swatch.toggleClass("is-none", css === null);
-      swatch.style.background = css ?? "";
+      swatch.setCssStyles({ background: css ?? "" });
     }
   }
 
@@ -814,7 +815,7 @@ export class DrawingEditor {
     const t = this.target();
     const shape = t && this.selected ? allShapes(t.scene).find((s) => s.path === this.selected) : undefined;
     if (!input) return;
-    input.value = (shape && colorToHex(this.stage.doc, paintOf(shape, which))) ?? "#000000";
+    input.value = (shape && colorToHex(paintOf(shape, which))) ?? "#000000";
     if (!input.dataset.ready) {
       input.dataset.ready = "1";
       input.addEventListener("change", () => {
@@ -920,14 +921,9 @@ export class DrawingEditor {
 
   private applyZoom(): void {
     if (!this.svg) return;
-    if (this.zoom === null) {
-      this.svg.style.width = "100%";
-      this.svg.style.maxWidth = "100%";
-    } else {
-      this.svg.style.width = `${this.frameSize().w * this.zoom}px`;
-      this.svg.style.maxWidth = "none";
-    }
-    this.svg.style.height = "auto";
+    this.svg.toggleClass("is-fit", this.zoom === null);
+    this.svg.toggleClass("is-zoomed", this.zoom !== null);
+    if (this.zoom !== null) this.svg.setCssProps({ "--zyxdraw-svg-width": `${this.frameSize().w * this.zoom}px` });
   }
 
   private onWheel(e: WheelEvent): void {
@@ -983,7 +979,7 @@ export class DrawingEditor {
     if (!this.svg || !t || !this.selected) return;
     const doc = this.svg.ownerDocument;
     const group = (parent: Element, transform: string) => {
-      const el = doc.createElementNS(SVG_NS, "g") as SVGGElement;
+      const el = doc.createElementNS(SVG_NS, "g");
       if (transform) el.setAttribute("transform", transform);
       parent.appendChild(el);
       return el;
@@ -1031,7 +1027,7 @@ export class DrawingEditor {
     layer.empty();
     const doc = layer.ownerDocument;
     const el = (tag: string, attrs: Record<string, number | string>, cls: string) => {
-      const e = doc.createElementNS(SVG_NS, tag) as SVGElement;
+      const e = doc.createElementNS(SVG_NS, tag);
       for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
       e.setAttribute("vector-effect", "non-scaling-stroke");
       e.classList.add(...cls.split(" "));
@@ -1286,7 +1282,7 @@ export class DrawingEditor {
     }
     if (d.kind === "marquee") {
       if (!d.rect && this.svg) {
-        d.rect = this.svg.ownerDocument.createElementNS(SVG_NS, "rect") as SVGRectElement;
+        d.rect = this.svg.ownerDocument.createElementNS(SVG_NS, "rect");
         d.rect.setAttribute("vector-effect", "non-scaling-stroke");
         d.rect.classList.add("zyxdraw-marquee");
         this.svg.appendChild(d.rect);

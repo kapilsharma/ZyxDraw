@@ -10,7 +10,7 @@ export async function svgToPng(svg: string, scale: number, background: string | 
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   await img.decode();
 
-  const canvas = activeDocument.createElement("canvas");
+  const canvas = createEl("canvas");
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
   const ctx = canvas.getContext("2d");

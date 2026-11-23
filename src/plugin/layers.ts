@@ -106,7 +106,8 @@ export function layerToggles(toggle: (path: string) => void): Extension {
       initialSpacer: () => new Spacer(),
       domEventHandlers: {
         mousedown: (view, line, event) => {
-          if (!(event.target instanceof Element) || !event.target.closest(".zyxdraw-eye")) return false;
+          const target = event.target as Node | null;
+          if (!target?.instanceOf(Element) || !target.closest(".zyxdraw-eye")) return false;
           const hit = layersByLine(view.state).find((x) => x.from === line.from);
           if (!hit) return false;
           event.preventDefault();

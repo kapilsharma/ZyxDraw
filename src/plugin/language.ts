@@ -81,7 +81,7 @@ function complete(ctx: CompletionContext): CompletionResult | null {
   const before = doc.slice(0, word.from);
   const { depth, type } = context(before);
   const names = namesIn(doc);
-  let options: Completion[] = [];
+  let options: Completion[];
 
   if (depth === 0) {
     const line = before.slice(before.lastIndexOf("\n") + 1);

@@ -196,7 +196,7 @@ export class PropertyPanel {
   private colorSwatch(parent: HTMLElement, f: PropertyField, onPick: (hex: string) => void): void {
     const picker = parent.createEl("input", { type: "color", cls: "zyxdraw-prop-color", attr: { "aria-label": "Pick a color" } });
     const shown = f.value || (f.placeholder ?? "").replace(/ \(style\)$/, "");
-    const hex = colorToHex(this.el.ownerDocument, shown);
+    const hex = colorToHex(shown);
     picker.value = hex ?? "#000000";
     if (!hex) picker.addClass("is-none");
     picker.addEventListener("change", () => onPick(picker.value));
@@ -247,10 +247,10 @@ function listFor(f: PropertyField): string | null {
 let colorCtx: CanvasRenderingContext2D | null = null;
 
 /** A CSS color as `#rrggbb` (for a color picker), or null for none, gradients and unknown names. */
-export function colorToHex(doc: Document, color: string): string | null {
+export function colorToHex(color: string): string | null {
   if (!color || color === "none" || color === "transparent") return null;
   if (/^#[0-9a-f]{6}$/i.test(color)) return color.toLowerCase();
-  colorCtx ??= doc.createElement("canvas").getContext("2d");
+  colorCtx ??= createEl("canvas").getContext("2d");
   const ctx = colorCtx;
   if (!ctx) return null;
   // An unknown color leaves the previous one: two different starting colors tell it apart.
