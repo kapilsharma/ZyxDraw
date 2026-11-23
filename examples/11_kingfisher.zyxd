@@ -1,0 +1,29 @@
+# A kingfisher on a branch, drawn as vector art.
+# Every shape is a path the way the pen tool writes it (M, L, C, Z): select one
+# in the drawing to drag its points and curve handles, or add and delete points.
+canvas(width=600, height=500, background=#f3f1ec)
+
+# Reusable looks
+feather is style(fill=none, stroke=#8da2f0, stroke-width=2, opacity=0.8)
+
+branch is path(d="M 40,430 C 180,405 380,398 580,372 L 584,390 C 380,418 190,432 44,450 Z", fill=#6b4a2e)
+twig is path(d="M 470,390 C 500,360 520,345 555,335", fill=none, stroke=#6b4a2e, stroke-width=6)
+
+tail is path(d="M 205,405 L 118,488 C 130,494 145,496 160,492 L 232,428 Z", fill=#1f3a93)
+back is path(d="M 318,108 C 370,82 425,100 432,150 C 437,185 418,210 400,224 C 398,292 360,348 296,386 C 252,412 214,428 170,452 C 186,398 204,330 232,268 C 258,208 274,140 318,108 Z", fill=#2a52be)
+breast is path(d="M 402,214 C 428,268 410,330 362,364 C 322,392 262,414 186,446 C 240,404 292,378 324,338 C 352,302 370,252 402,214 Z", fill=#e8582a)
+wing is path(d="M 300,170 C 334,184 352,236 334,292 C 316,346 258,392 192,432 C 212,372 230,304 258,244 C 272,212 284,184 300,170 Z", fill=#3d2c8d)
+feather1 is path(d="M 296,214 C 300,262 282,318 240,368", style=feather)
+feather2 is path(d="M 318,236 C 316,286 296,334 262,370", style=feather)
+
+head is path(d="M 296,142 C 296,98 336,72 380,76 C 422,80 448,108 444,146 L 404,162 C 368,168 326,162 296,142 Z", fill=#6a2c91)
+cheek is path(d="M 352,150 C 376,138 410,142 430,158 C 410,176 378,176 352,150 Z", fill=#f07a32)
+throat is path(d="M 330,166 C 352,176 378,182 402,178 C 392,198 362,204 332,192 C 320,184 322,172 330,166 Z", fill=#f6f0fa)
+
+beak_top is path(d="M 428,124 L 566,148 L 424,152 C 421,147 419.8,142 420.4,137.3 C 421,132.5 423.5,128 428,124 Z", fill=#3a3a3a)
+beak_bottom is path(d="M 424,152 L 566,148 L 430,166 C 425,162 423,157 424,152 Z", fill=#1c1c1c)
+
+eye is circle(cx=394, cy=118, r=10, fill=#111)
+glint is circle(cx=397, cy=114, r=3, fill=white)
+
+feet is path(d="M 300,384 L 296,402 M 318,378 L 316,398", fill=none, stroke=#e8582a, stroke-width=5)

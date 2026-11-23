@@ -1,0 +1,80 @@
+# The Hero's Journey: the twelve stages many novels follow, drawn mostly with circles.
+# The top half is the hero's Ordinary World, the bottom half the Special World of the adventure.
+# The story runs clockwise: it crosses into the Special World at Crossing the Threshold (right),
+# reaches its lowest point at The Ordeal (bottom), and comes back through Resurrection (left).
+# Colours: gold = Act I (departure), blue = Act II (initiation), coral = Act III (return).
+canvas(width=1100, height=1000, background=#0e1726)
+
+act1 is style(fill=#fbb904)
+act2 is style(fill=#31bbec)
+act3 is style(fill=#e76f51)
+caption is style(font-size=17, fill=#f4ecd8)
+faint is style(fill=none, stroke=#f4ecd8, stroke-width=1, opacity=0.35)
+
+lower-half is clip():
+  rect(y=50%, width=100%, height=50%)
+
+# One stage: a numbered disc with a white rim.
+stage is shape(n, width=68, height=68):
+  disc is circle(cx=50%, cy=50%, r=34, stroke=#0e1726, stroke-width=4)
+  number is text(n, x=50%, y=23, align=middle, font-size=22, font-weight=bold, fill=#0e1726)
+
+# The two worlds: one big circle, warm above, deep blue below.
+ordinary is circle(cx=550, cy=500, r=360, fill=#f6d58e, opacity=0.2)
+special is circle(cx=550, cy=500, r=360, fill=#31bbec, opacity=0.25, clip-path=lower-half)
+
+# Rings: the path of the story, and two inner echoes.
+path-ring is circle(cx=550, cy=500, r=290, fill=none, stroke=#f4ecd8, stroke-width=3, stroke-dasharray="2 10", opacity=0.8)
+circle(cx=550, cy=500, r=215, style=faint)
+circle(cx=550, cy=500, r=140, style=faint)
+
+# The threshold between the worlds.
+threshold is line(x1=190, y1=500, x2=910, y2=500, stroke=#f4ecd8, stroke-width=1, stroke-dasharray="8 6", opacity=0.6)
+text("ORDINARY WORLD", x=550, y=340, align=middle, font-size=14, fill=#f6d58e)
+text("SPECIAL WORLD", x=550, y=646, align=middle, font-size=14, fill=#8fd8f5)
+
+# The heart of the story.
+heart is circle(cx=550, cy=500, r=104, fill=#0e1726, stroke=#fbb904, stroke-width=2)
+title is text("The Hero's Journey", x=550, y=478, align=middle, font-size=20, font-weight=bold, fill=#f4ecd8)
+subtitle is text("a story in twelve steps", x=550, y=508, align=middle, font-size=13, fill=#f6d58e)
+
+# Stars - lower left
+circle(cx=110, cy=720, r=3, fill=#f4ecd8, opacity=0.8)
+circle(cx=170, cy=860, r=2, fill=#f4ecd8, opacity=0.8)
+circle(cx=260, cy=950, r=3, fill=#f4ecd8, opacity=0.8)
+circle(cx=70, cy=940, r=2, fill=#f4ecd8, opacity=0.8)
+# Stars - Lower right
+circle(cx=960, cy=880, r=2, fill=#f4ecd8, opacity=0.8)
+circle(cx=1030, cy=760, r=3, fill=#f4ecd8, opacity=0.8)
+circle(cx=880, cy=960, r=3, fill=#f4ecd8, opacity=0.8)
+circle(cx=1050, cy=950, r=2, fill=#f4ecd8, opacity=0.8)
+# A sun top-right of the ordinary world.
+circle(cx=980, cy=120, r=46, fill=#fbb904, opacity=0.9)
+circle(cx=980, cy=120, r=62, fill=none, stroke=#fbb904, stroke-width=2, opacity=0.4)
+circle(cx=980, cy=120, r=80, fill=none, stroke=#fbb904, stroke-width=1, opacity=0.2)
+
+# The twelve stages, clockwise. Each label sits outside its disc.
+stage1 is stage(n="1", x=371, y=214.9, style=act1)
+text("Ordinary World", x=379, y=194.8, align=end, style=caption)
+stage2 is stage(n="2", x=516, y=176, style=act1)
+text("Call to Adventure", x=550, y=140, align=middle, style=caption)
+stage3 is stage(n="3", x=661, y=214.9, style=act1)
+text("Refusal of the Call", x=721, y=194.8, align=start, style=caption)
+stage4 is stage(n="4", x=767.1, y=321, style=act1)
+text("Meeting the Mentor", x=846.2, y=320, align=start, style=caption)
+stage5 is stage(n="5", x=806, y=466, style=act1)
+text("Crossing the Threshold", x=892, y=491, align=start, style=caption)
+stage6 is stage(n="6", x=767.1, y=611, style=act2)
+text("Tests, Allies, Enemies", x=846.2, y=662, align=start, style=caption)
+stage7 is stage(n="7", x=661, y=717.1, style=act2)
+text("Approach to the Inmost Cave", x=721, y=787.2, align=start, style=caption)
+stage8 is stage(n="8", x=516, y=756, style=act2)
+text("The Ordeal", x=550, y=844, align=middle, style=caption)
+stage9 is stage(n="9", x=371, y=717.1, style=act2)
+text("Reward", x=379, y=787.2, align=end, style=caption)
+stage10 is stage(n="10", x=264.9, y=611, style=act3)
+text("The Road Back", x=253.8, y=662, align=end, style=caption)
+stage11 is stage(n="11", x=226, y=466, style=act3)
+text("Resurrection", x=208, y=491, align=end, style=caption)
+stage12 is stage(n="12", x=264.9, y=321, style=act3)
+text("Return with the Elixir", x=253.8, y=320, align=end, style=caption)

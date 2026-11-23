@@ -1,0 +1,101 @@
+# A waterfall between two green cliffs.
+# Built back to front: sky, clouds, cliffs, waterfall, meadow, pond, rocks, leaves.
+# Pines, clouds and leaves are custom shapes, reused with x, y, scale and rotate.
+# Gradients shade the sky, cliffs, rock faces, water and stones; a style can use one too.
+canvas(width=600, height=450, background=sky)
+
+# Gradients: from=top, to=bottom with angle=90
+sky is gradient(from=#5fc4e4, to=#d4f2f8, angle=90)
+grass_shade is gradient(from=#7c4, to=#3a2, angle=90)
+rock_shade is gradient(from=#9ab, to=#678)
+falling_water is gradient(from=white, to=#bfe9f3, angle=90)
+water is gradient(from=#4ee0dc, to=#1a8fb0, angle=90)
+stone_shade is gradient(from=#d97a3a, to=#a5481f, angle=90)
+spray_glow is gradient(type=radial):
+  stop(offset=0%, color=white, opacity=0.9)
+  stop(offset=100%, color=white, opacity=0)
+
+# Colors
+grass is style(fill=grass_shade)
+grass_dark is style(fill=#393)
+lime is style(fill=#ae4)
+teal is style(fill=#177)
+rock is style(fill=rock_shade)
+rock_light is style(fill=#abc)
+stone is style(fill=stone_shade)
+stone_dark is style(fill=#942)
+crack is style(fill=none, stroke=#383, stroke-width=3)
+
+# Reusable pieces
+pine is shape(color=#1f6b3a):
+  trunk is rect(x=17, y=60, width=6, height=10, fill=#5a3b22)
+  tree is polygon(points="20,0 32,20 27,20 38,40 31,40 42,62 -2,62 9,40 2,40 13,20 8,20", fill=color)
+
+cloud is shape(color=white):
+  circle(cx=28, cy=22, r=16, fill=color)
+  circle(cx=52, cy=14, r=18, fill=color)
+  circle(cx=74, cy=24, r=12, fill=color)
+  rect(x=10, y=22, width=76, height=14, radius=7, fill=color)
+
+leaf is shape(color=#1c2747):
+  path(d="M 0,0 C 20,-9 50,-9 80,0 C 50,9 20,9 0,0 Z", fill=color)
+
+# Sky (the canvas background is the `sky` gradient)
+cloud1 is cloud(x=70, y=40)
+cloud2 is cloud(x=150, y=90, scale=0.6)
+cloud3 is cloud(x=470, y=50, scale=0.8)
+far_hills is path(d="M 190,200 L 240,160 L 280,175 L 330,150 L 410,200 Z", fill=#a7c9d2)
+mist is cloud(x=255, y=140, scale=1.2)
+
+# Left cliff
+rock_left is path(d="M 150,140 C 190,130 230,150 262,175 L 270,335 L 190,335 Z", style=rock)
+rock_left_light is path(d="M 200,150 C 225,160 245,175 258,190 L 262,320 C 245,270 225,210 200,150 Z", style=rock_light)
+cliff_left is path(d="M 0,110 C 40,95 70,90 100,100 C 130,110 150,130 170,140 C 195,200 205,270 235,335 L 0,335 Z", style=grass)
+shade_left is path(d="M 0,170 C 40,160 70,175 80,210 C 90,260 70,300 60,335 L 0,335 Z", style=teal)
+light_left is path(d="M 110,135 C 140,165 150,220 178,265 C 155,245 135,225 118,180 C 114,165 111,150 110,135 Z", style=lime)
+cracks_left is path(d="M 95,120 C 110,160 115,200 135,240 M 30,130 C 45,140 55,150 60,165", style=crack)
+hill_left is path(d="M 0,285 C 60,255 140,262 200,300 C 220,312 235,325 248,338 L 0,345 Z", style=grass_dark)
+
+# Right cliff
+rock_right is path(d="M 450,140 C 410,130 370,150 338,175 L 330,335 L 410,335 Z", style=rock)
+rock_right_light is path(d="M 395,148 C 372,160 355,175 342,190 L 338,320 C 352,270 372,205 395,148 Z", style=rock_light)
+cliff_right is path(d="M 600,100 C 560,90 520,100 490,115 C 460,130 445,145 430,150 C 402,210 392,270 365,335 L 600,335 Z", style=grass)
+shade_right is path(d="M 600,150 C 560,150 520,170 505,220 C 490,270 495,300 505,335 L 600,335 Z", style=teal)
+light_right is path(d="M 478,158 C 462,200 445,240 422,292 L 440,282 C 456,240 470,200 486,162 Z", style=lime)
+cracks_right is path(d="M 520,120 C 510,160 500,190 480,230 M 575,120 C 560,140 552,150 548,170", style=crack)
+hill_right is path(d="M 600,295 C 540,268 460,275 400,310 C 380,322 365,330 352,338 L 600,345 Z", style=grass_dark)
+
+# Pines on the cliff tops
+pine1 is pine(x=60, y=40, scale=1.2)
+pine2 is pine(x=20, y=70, scale=0.7)
+pine3 is pine(x=520, y=35, scale=1.1)
+pine4 is pine(x=560, y=65, scale=0.6)
+pine5 is pine(x=470, y=80, scale=0.5)
+
+# Waterfall
+fall is rect(x=268, y=178, width=64, height=160, fill=falling_water)
+streams is path(d="M 280,182 L 280,334 M 297,180 L 297,336 M 318,182 L 318,334", fill=none, stroke=#9fd6e4, stroke-width=4)
+splash is path(d="M 240,342 C 245,325 262,322 272,330 C 282,315 300,318 306,328 C 318,316 338,320 342,332 C 356,326 366,336 362,346 Z", style=grass_dark, x=0.1%, y=-2%)
+
+# Meadow and pond
+meadow is path(d="M 0,338 C 150,328 450,328 600,338 L 600,372 L 0,372 Z", fill=#a4dc3c)
+pond is path(d="M 0,368 C 120,356 480,356 600,368 L 600,450 L 0,450 Z", fill=water)
+pond_deep is path(d="M 0,412 C 200,396 400,402 600,410 L 600,450 L 0,450 Z", fill=#1a8fb0, opacity=0.5)
+spray is ellipse(cx=300, cy=362, rx=80, ry=16, fill=spray_glow)
+ripples is path(d="M 250,380 L 330,380 M 270,392 L 350,392 M 220,404 L 290,404 M 310,420 L 380,420", fill=none, stroke=white, stroke-width=3, opacity=0.7)
+
+# Rocks
+stone_left is path(d="M 20,372 C 40,342 110,336 140,356 C 162,372 152,398 120,402 L 28,402 C 14,396 12,384 20,372 Z", style=stone)
+stone_left_shade is path(d="M 28,402 C 60,388 100,386 120,402 Z", style=stone_dark)
+stone_mid is path(d="M 232,354 C 262,342 330,344 362,354 C 366,364 346,370 300,370 C 260,370 230,366 232,354 Z", style=stone)
+stone_right is path(d="M 468,384 C 478,352 540,342 584,352 L 600,362 L 600,404 L 476,404 C 466,398 464,392 468,384 Z", style=stone)
+stone_right_shade is path(d="M 476,404 C 520,390 570,390 600,396 L 600,404 Z", style=stone_dark)
+
+# Leaves in the front corners
+leaf1 is leaf(x=-10, y=330, rotate=-30)
+leaf2 is leaf(x=-10, y=360, rotate=-10)
+leaf3 is leaf(x=-10, y=395, rotate=15)
+leaf4 is leaf(x=-5, y=420, rotate=35)
+leaf5 is leaf(x=530, y=320, rotate=-150)
+leaf6 is leaf(x=530, y=360, rotate=-170)
+leaf7 is leaf(x=530, y=400, rotate=165)

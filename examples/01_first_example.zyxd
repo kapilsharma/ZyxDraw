@@ -1,0 +1,17 @@
+# New ZyxDraw drawing
+canvas(width=330, height=100)
+
+primary is style(fill=yellow, stroke=red, stroke-width=2)
+secondary is style(fill=rgb(0, 255, 0), stroke=#088, stroke-width=4)
+
+block_a is rect(top=20%, left=5%, width=40%, height=60%, style=primary)
+block_b is rect(
+  right-of=block_a 30,
+  top=20,
+  width=40%
+  height=60
+  style=secondary
+)
+
+line(from=block_a, to=block_b, arrow=end, label="Text")
+

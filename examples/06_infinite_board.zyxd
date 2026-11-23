@@ -1,0 +1,19 @@
+# An infinite board: no fixed size. The SVG is sized to what is drawn, plus 20 px around it.
+# Positions are in pixels (percent needs a canvas size), and may be negative.
+canvas(infinite)
+
+note is style(fill=#fff3b0, stroke=#d4b106, rx=6)
+
+idea is rect(x=0, y=0, width=140, height=70, style=note)
+text(x=70, y=40, "Idea", align=middle)
+
+plan is rect(right-of=idea 120, y=0, width=140, height=70, style=note)
+line(from=idea, to=plan, arrow=end)
+
+# Far away, up and to the left.
+later is rect(x=-400, y=-250, width=140, height=70, style=note)
+
+# Percent still works inside a group that has a size.
+panel is group(x=0, y=150, width=400, height=100):
+  rect(x=0, y=0, width=100%, height=100%, fill=none, stroke=gray)
+  text(x=50%, y=55%, "50% of the panel", align=middle)

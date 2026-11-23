@@ -1,0 +1,21 @@
+# A small library of system-design shapes.
+# Use it with: import service, database, queue from shapes/system.zyxd
+
+label is style(font-size=14, fill=#1a1a1a)
+
+service is shape(label, width=140, height=60, color=#dbe8fb):
+  body is rect(width=100%, height=100%, radius=8, fill=color, stroke=#3b6db3, stroke-width=2)
+  name is text(label, x=50%, y=20, align=middle, style=label)
+
+# Cylinder: corners as wide as half the body (rx) and as tall as the lid (ry) make
+# elliptical top and bottom edges; the lid ellipse sits exactly on the top one.
+# `width / 2` is calculated per instance, so any width works.
+database is shape(label, width=120, height=80, color=#e3f4e1):
+  body is rect(width=100%, height=100%, rx=width / 2, ry=10, fill=color, stroke=#3c8c3a, stroke-width=2)
+  lid is ellipse(x=0, y=0, rx=width / 2, ry=10, fill=color, stroke=#3c8c3a, stroke-width=2)
+  name is text(label, x=50%, y=35, align=middle, style=label)
+
+queue is shape(label, width=140, height=40):
+  body is rect(width=100%, height=100%, fill=#fff4d6, stroke=#b8860b, stroke-width=2, stroke-dasharray="6 3")
+  name is text(label, x=50%, y=12, align=middle, style=label)
+  

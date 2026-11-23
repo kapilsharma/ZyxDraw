@@ -1,0 +1,42 @@
+# A cuddly panda, sitting.
+# Round parts are circles and ellipses; the body, arms and feet are paths
+# written the way the pen tool writes them (M, L, C, Z).
+canvas(width=400, height=400, background=white)
+
+# Colors
+fur is style(fill=#f8eed9)
+dark is style(fill=#4b3a35)
+pink is style(fill=#f2b3a6)
+claw is style(fill=none, stroke=#f8eed9, stroke-width=3)
+
+# Ears, behind the head
+ear_left is circle(cx=98, cy=50, r=32, style=dark)
+ear_left_inner is circle(cx=102, cy=54, r=14, style=pink)
+ear_right is circle(cx=296, cy=52, r=27, style=dark)
+ear_right_inner is circle(cx=292, cy=56, r=12, style=pink)
+
+# Head and body in one round shape
+body is path(d="M 200,30 C 292,28 346,88 340,168 C 336,232 318,300 330,352 C 296,388 122,390 86,364 C 50,330 44,262 58,202 C 68,150 70,110 96,76 C 122,44 160,30 200,30 Z", style=fur)
+
+# Face
+patch_left is ellipse(cx=160, cy=96, rx=24, ry=31, rotate=-25, style=dark)
+patch_right is ellipse(cx=254, cy=92, rx=21, ry=28, rotate=25, style=dark)
+eye_left is circle(cx=163, cy=92, r=7, fill=#1e1716)
+eye_right is circle(cx=250, cy=89, r=6, fill=#1e1716)
+glint_left is circle(cx=165, cy=89, r=2.5, fill=white)
+glint_right is circle(cx=252, cy=86, r=2, fill=white)
+cheek_left is ellipse(cx=134, cy=128, rx=21, ry=14, style=pink)
+cheek_right is ellipse(cx=274, cy=122, rx=17, ry=12, style=pink)
+nose is path(d="M 196,104 C 199,98 215,98 218,104 C 216,110 211,113 207,114 C 203,113 198,110 196,104 Z", fill=#1e1716)
+mouth is path(d="M 186,118 C 188,122 191.3,125 195.1,126.9 C 199,128.9 203.5,129.8 208,129.5 C 217,129 226,124 230,114 M 207,114 L 207,124", fill=none, stroke=#1e1716, stroke-width=3)
+
+# Arms: one across the body, one coming up to meet it
+arm is path(d="M 58,204 C 104,166 196,160 246,186 C 262,196 266,222 252,240 C 236,258 212,256 200,248 C 164,250 108,262 68,292 C 52,266 50,230 58,204 Z", style=dark)
+paw is path(d="M 244,196 C 266,176 298,184 300,214 C 302,244 284,264 262,264 C 240,264 228,246 232,226 C 234,212 236,204 244,196 Z", style=dark)
+claws is path(d="M 236,214 L 248,218 M 234,226 L 248,228 M 236,238 L 249,238", style=claw)
+
+# Feet
+foot_left is path(d="M 96,300 C 140,284 206,298 232,330 C 248,350 242,372 220,376 C 170,382 120,380 98,370 C 84,350 82,320 96,300 Z", style=dark)
+toes_left is path(d="M 222,346 L 236,342 M 222,358 L 238,358", style=claw)
+foot_right is path(d="M 302,290 C 328,300 344,332 338,362 C 322,374 296,372 284,362 C 290,336 292,312 302,290 Z", style=dark)
+toes_right is path(d="M 318,352 L 330,362 M 306,356 L 314,366", style=claw)

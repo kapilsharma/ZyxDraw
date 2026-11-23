@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="380" viewBox="0 0 720 380">
+  <defs>
+    <marker id="arrow-end" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="black" />
+    </marker>
+  </defs>
+  <rect width="720" height="380" fill="white" />
+  <text x="360" y="16" font-size="22" text-anchor="middle" dominant-baseline="hanging">Order flow</text>
+  <g transform="translate(40,80)">
+    <rect x="0" y="0" width="140" height="60" rx="8" ry="8" fill="#dbe8fb" stroke="#3b6db3" stroke-width="2" />
+    <text x="70" y="20" fill="#1a1a1a" font-size="14" text-anchor="middle" dominant-baseline="hanging">Web app</text>
+  </g>
+  <g transform="translate(260,80)">
+    <rect x="0" y="0" width="140" height="60" rx="8" ry="8" fill="#dbe8fb" stroke="#3b6db3" stroke-width="2" />
+    <text x="70" y="20" fill="#1a1a1a" font-size="14" text-anchor="middle" dominant-baseline="hanging">API</text>
+  </g>
+  <g transform="translate(480,70)">
+    <rect x="0" y="0" width="120" height="80" rx="16" ry="16" fill="#e3f4e1" stroke="#3c8c3a" stroke-width="2" />
+    <ellipse cx="60" cy="10" rx="60" ry="10" fill="#e3f4e1" stroke="#3c8c3a" stroke-width="2" />
+    <text x="60" y="35" fill="#1a1a1a" font-size="14" text-anchor="middle" dominant-baseline="hanging">Orders DB</text>
+  </g>
+  <g transform="translate(260,210)">
+    <rect x="0" y="0" width="140" height="40" fill="#fff4d6" stroke="#b8860b" stroke-width="2" stroke-dasharray="6 3" />
+    <text x="70" y="12" fill="#1a1a1a" font-size="14" text-anchor="middle" dominant-baseline="hanging">order-events</text>
+  </g>
+  <g transform="translate(260,300)">
+    <rect x="0" y="0" width="140" height="60" rx="8" ry="8" fill="#dbe8fb" stroke="#3b6db3" stroke-width="2" />
+    <text x="70" y="20" fill="#1a1a1a" font-size="14" text-anchor="middle" dominant-baseline="hanging">Mailer</text>
+  </g>
+  <line x1="180" y1="110" x2="260" y2="110" stroke="black" marker-end="url(#arrow-end)" />
+  <text x="220" y="104" text-anchor="middle">HTTPS</text>
+  <line x1="400" y1="110" x2="480" y2="110" stroke="black" marker-end="url(#arrow-end)" />
+  <text x="440" y="104" text-anchor="middle">SQL</text>
+  <line x1="330" y1="140" x2="330" y2="210" stroke="black" marker-end="url(#arrow-end)" />
+  <text x="330" y="169" text-anchor="middle">publish</text>
+  <line x1="330" y1="250" x2="330" y2="300" stroke="black" marker-end="url(#arrow-end)" />
+  <text x="330" y="269" text-anchor="middle">consume</text>
+</svg>

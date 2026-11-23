@@ -1,0 +1,721 @@
+/* ZyxDraw. Editor colors follow the Obsidian theme; the drawing keeps the colors in the file. */
+
+/* ---- view header: mode switch (text / split / drawing) ---- */
+.zyxdraw-mode-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
+  margin-right: var(--size-2-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.zyxdraw-mode-group .zyxdraw-mode-button {
+  margin: 0;
+}
+
+.zyxdraw-mode-group .zyxdraw-mode-button.is-active {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+}
+
+.zyxdraw-mode-group .zyxdraw-mode-button.is-active:hover {
+  background-color: var(--interactive-accent-hover);
+}
+
+/* Property panel toggle, left of the mode group: highlighted while the panel is shown. */
+.zyxdraw-properties-button {
+  margin-right: var(--size-2-2);
+}
+
+.zyxdraw-properties-button.is-active {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+}
+
+.zyxdraw-properties-button.is-active:hover {
+  background-color: var(--interactive-accent-hover);
+}
+
+/* ---- view layout and modes ---- */
+.zyxdraw-view {
+  display: flex;
+  height: 100%;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.zyxdraw-source,
+.zyxdraw-preview {
+  flex: 1 1 50%;
+  min-width: 0;
+}
+
+.zyxdraw-view.mode-source .zyxdraw-preview,
+.zyxdraw-view.mode-drawing .zyxdraw-source {
+  display: none;
+}
+
+.zyxdraw-source {
+  overflow: auto;
+}
+
+/* The text pane width is set from the drag handle; alone, it fills the view. */
+.zyxdraw-view.mode-source .zyxdraw-source {
+  flex: 1 1 0 !important;
+}
+
+/* Wrapping long lines (command "Toggle text wrapping"), enforced here as well in case a theme
+   or Obsidian's own editor styles keep `white-space: pre`. */
+.zyxdraw-view.is-wrapping .zyxdraw-source .cm-content {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  width: auto;
+  flex-shrink: 1;
+}
+
+.zyxdraw-view:not(.is-wrapping) .zyxdraw-source .cm-content {
+  white-space: pre !important;
+}
+
+/* ---- drag handles between panes ---- */
+.zyxdraw-splitter {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  background: var(--background-modifier-border);
+  transition: background-color 0.1s;
+}
+
+.zyxdraw-splitter.is-vertical {
+  width: 1px;
+  cursor: col-resize;
+}
+
+.zyxdraw-splitter.is-horizontal {
+  height: 1px;
+  cursor: row-resize;
+}
+
+/* A wider invisible grab area around the 1px line. */
+.zyxdraw-splitter::after {
+  content: "";
+  position: absolute;
+}
+
+.zyxdraw-splitter.is-vertical::after {
+  inset: 0 -4px;
+}
+
+.zyxdraw-splitter.is-horizontal::after {
+  inset: -4px 0;
+}
+
+.zyxdraw-splitter:hover,
+.zyxdraw-splitter.is-dragging {
+  background: var(--interactive-accent);
+}
+
+.zyxdraw-splitter:hover,
+.zyxdraw-splitter.is-dragging {
+  box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.zyxdraw-splitter.is-hidden,
+.zyxdraw-view:not(.mode-split) .zyxdraw-splitter.is-vertical {
+  display: none;
+}
+
+/* While dragging: keep the resize cursor, and no text selection anywhere. */
+body.zyxdraw-resizing-x,
+body.zyxdraw-resizing-x * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.zyxdraw-resizing-y,
+body.zyxdraw-resizing-y * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+.zyxdraw-source .cm-editor {
+  height: 100%;
+  font-family: var(--font-monospace);
+  font-size: var(--font-text-size);
+  color: var(--text-normal);
+  background: var(--background-primary);
+}
+
+.zyxdraw-source .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* Cursor and selection in theme colors (CodeMirror's defaults are black, invisible on dark themes). */
+.zyxdraw-source .cm-content {
+  caret-color: var(--caret-color, var(--text-normal));
+}
+
+.zyxdraw-source .cm-cursor,
+.zyxdraw-source .cm-dropCursor {
+  border-left: 2px solid var(--caret-color, var(--text-normal));
+}
+
+.zyxdraw-source .cm-editor.cm-focused .cm-cursorLayer {
+  visibility: visible;
+}
+
+/*
+ * `!important`: CodeMirror's base theme colors the focused selection with a more specific
+ * rule (`.cm-focused > .cm-scroller > .cm-selectionLayer ...`, a near-white lavender).
+ */
+.zyxdraw-source .cm-selectionBackground,
+.zyxdraw-source .cm-editor.cm-focused .cm-selectionBackground,
+.zyxdraw-source .cm-content ::selection {
+  background: var(--text-selection, rgba(127, 127, 255, 0.3)) !important;
+}
+
+/*
+ * Syntax colors (the .zyxd editor and ```zyxd blocks in notes): the theme's code colors, with
+ * fallbacks. `!important` because themes style code-block text in notes with strong rules;
+ * these classes are ours only, so this cannot affect anything else. The `*` rule covers text
+ * that Obsidian wraps in its own span inside ours.
+ */
+.zyxdraw-tok-keyword, .zyxdraw-tok-keyword * { color: var(--code-keyword, #c678dd) !important; }
+.zyxdraw-tok-type, .zyxdraw-tok-type * { color: var(--code-tag, #e5c07b) !important; }
+.zyxdraw-tok-def, .zyxdraw-tok-def * { color: var(--code-function, #61afef) !important; }
+.zyxdraw-tok-property, .zyxdraw-tok-property * { color: var(--code-property, #56b6c2) !important; }
+.zyxdraw-tok-string, .zyxdraw-tok-string * { color: var(--code-string, #98c379) !important; }
+.zyxdraw-tok-number, .zyxdraw-tok-number *,
+.zyxdraw-tok-atom, .zyxdraw-tok-atom * { color: var(--code-value, #d19a66) !important; }
+.zyxdraw-tok-comment, .zyxdraw-tok-comment * { color: var(--code-comment, #7f848e) !important; font-style: italic; }
+.zyxdraw-tok-operator, .zyxdraw-tok-operator * { color: var(--code-operator, #abb2bf) !important; }
+.zyxdraw-tok-variable, .zyxdraw-tok-variable * { color: var(--code-normal, var(--text-normal)) !important; }
+
+/* Ctrl/Cmd held over a name: it is a link to its definition. */
+.zyxdraw-source .zyxdraw-link,
+.zyxdraw-source .zyxdraw-link * {
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+  cursor: pointer !important;
+}
+
+.zyxdraw-source .cm-gutters {
+  background: var(--background-secondary);
+  color: var(--text-faint);
+  border-right: 1px solid var(--background-modifier-border);
+}
+
+.zyxdraw-source .cm-activeLine {
+  background: var(--background-modifier-hover);
+}
+
+.zyxdraw-preview {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background-secondary);
+}
+
+/* ---- drawing ---- */
+.zyxdraw-drawing {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.zyxdraw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: var(--size-2-2) var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+.zyxdraw-toolbar-gap {
+  flex: 1;
+}
+
+.zyxdraw-toolbar-separator {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--size-2-1) var(--size-2-2);
+  background: var(--background-modifier-border);
+}
+
+/* Select / hand: same look as the view mode group. */
+.zyxdraw-tool-group {
+  display: flex;
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.zyxdraw-tool-group .clickable-icon.is-active {
+  color: var(--text-on-accent);
+  background-color: var(--interactive-accent);
+}
+
+.zyxdraw-tool-group .clickable-icon.is-active:hover {
+  background-color: var(--interactive-accent-hover);
+}
+
+/* Hand tool: grab cursor everywhere on the stage, also over shapes. */
+.zyxdraw-stage.is-hand,
+.zyxdraw-stage.is-hand * {
+  cursor: grab !important;
+}
+
+.zyxdraw-stage.is-panning,
+.zyxdraw-stage.is-panning * {
+  cursor: grabbing !important;
+}
+
+.zyxdraw-stage {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: var(--size-4-4);
+  outline: none;
+  touch-action: none;
+}
+
+.zyxdraw-stage:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+/* The frame is drawn on white so the drawing's own colors show as they will export. */
+.zyxdraw-svg {
+  display: block;
+  background: white;
+  box-shadow: 0 0 0 1px var(--background-modifier-border);
+  user-select: none;
+}
+
+/* Infinite canvas: no frame; the board fills the pane (no padding at its edges). */
+.zyxdraw-svg.is-infinite {
+  box-shadow: none;
+}
+
+.zyxdraw-stage:has(> .zyxdraw-svg.is-infinite) {
+  padding: 0;
+  background: white;
+}
+
+.zyxdraw-svg [data-zyx-path] {
+  cursor: move;
+}
+
+.zyxdraw-overlay {
+  pointer-events: none;
+}
+
+.zyxdraw-selection {
+  fill: none;
+  stroke: var(--interactive-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+/* Dragging a box on empty space to select the shapes inside. */
+.zyxdraw-marquee {
+  fill: var(--interactive-accent);
+  fill-opacity: 0.08;
+  stroke: var(--interactive-accent);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* Fill and stroke buttons: a swatch of the selected shape's color (fill: a square, stroke: a ring). */
+.zyxdraw-paint .zyxdraw-paint-swatch {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--background-modifier-border-hover);
+}
+
+.zyxdraw-paint.is-stroke .zyxdraw-paint-swatch {
+  /* Only the ring shows the color. */
+  -webkit-mask: radial-gradient(circle, transparent 4px, #000 4.5px);
+  mask: radial-gradient(circle, transparent 4px, #000 4.5px);
+  border-radius: 50%;
+  border: none;
+}
+
+/* No color: a diagonal line. */
+.zyxdraw-paint .zyxdraw-paint-swatch.is-none {
+  background: linear-gradient(to top right, transparent calc(50% - 1px), var(--text-error) 50%, transparent calc(50% + 1px));
+}
+
+.zyxdraw-paint.is-disabled {
+  opacity: 0.4;
+}
+
+/* The color picker opened from the fill / stroke menus: present for the browser, not visible. */
+.zyxdraw-paint-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.zyxdraw-handle {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 1.5;
+  pointer-events: all;
+}
+
+.zyxdraw-handle.is-nw,
+.zyxdraw-handle.is-se { cursor: nwse-resize; }
+.zyxdraw-handle.is-ne,
+.zyxdraw-handle.is-sw { cursor: nesw-resize; }
+.zyxdraw-handle.is-n,
+.zyxdraw-handle.is-s { cursor: ns-resize; }
+.zyxdraw-handle.is-e,
+.zyxdraw-handle.is-w { cursor: ew-resize; }
+
+/* Points of a path, polygon or polyline: squares on the outline, circles for curve controls. */
+.zyxdraw-point {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 1.5;
+  pointer-events: all;
+  cursor: move;
+}
+
+.zyxdraw-point.is-control {
+  fill: var(--interactive-accent);
+}
+
+.zyxdraw-guide {
+  stroke: var(--interactive-accent);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+  opacity: 0.7;
+}
+
+/* Middle of a polygon side: click or drag to add a point. */
+.zyxdraw-midpoint {
+  fill: var(--interactive-accent);
+  stroke: var(--background-primary);
+  stroke-width: 1;
+  opacity: 0.45;
+  pointer-events: all;
+  cursor: copy;
+}
+
+.zyxdraw-midpoint:hover,
+.zyxdraw-midpoint.is-dragging {
+  opacity: 1;
+}
+
+/* Polygon tool: the shape being drawn. */
+.zyxdraw-stage.is-drawing,
+.zyxdraw-stage.is-drawing * {
+  cursor: crosshair;
+}
+
+.zyxdraw-draft-shape {
+  fill: var(--interactive-accent);
+  fill-opacity: 0.12;
+  stroke: var(--interactive-accent);
+  stroke-width: 1.5;
+}
+
+/* Line and pen tools: an open path being drawn shows no fill. */
+.zyxdraw-draft-shape.is-open {
+  fill: none;
+}
+
+.zyxdraw-draft,
+.zyxdraw-draft * {
+  pointer-events: none;
+}
+
+/* The point last clicked: its numbers are selected in the text. */
+.zyxdraw-point.is-selected {
+  fill: var(--interactive-accent);
+  stroke: var(--text-normal);
+  stroke-width: 2;
+}
+
+/* Grid over the drawing (toolbar button). Never catches the mouse. */
+.zyxdraw-grid {
+  pointer-events: none;
+  fill: none;
+}
+
+.zyxdraw-grid path {
+  stroke: var(--text-faint);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.zyxdraw-grid .is-minor {
+  opacity: 0.25;
+}
+
+.zyxdraw-grid .is-major {
+  opacity: 0.55;
+}
+
+/* Mouse position in the status bar. */
+.zyxdraw-coordinates {
+  font-variant-numeric: tabular-nums;
+}
+
+.zyxdraw-coordinates.is-hidden {
+  display: none;
+}
+
+/* ---- property panel (under the drawing) ---- */
+/* Height set from the drag handle above it (a fraction of the drawing pane). */
+.zyxdraw-properties {
+  flex: 0 0 auto;
+  min-height: 3em;
+  overflow: auto;
+  /* Room to scroll the last fields above Obsidian's status bar, which floats over the pane. */
+  padding-bottom: 3.5em;
+  background: var(--background-primary);
+  font-size: var(--font-ui-small);
+}
+
+.zyxdraw-properties.is-hidden {
+  display: none;
+}
+
+.zyxdraw-prop-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  padding: var(--size-2-2) var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+.zyxdraw-prop-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--size-2-2);
+  font-weight: var(--font-semibold);
+}
+
+.zyxdraw-prop-type {
+  color: var(--text-accent);
+  font-family: var(--font-monospace);
+}
+
+.zyxdraw-prop-name {
+  font-family: var(--font-monospace);
+}
+
+.zyxdraw-prop-box {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.zyxdraw-prop-readonly {
+  padding: var(--size-2-2) var(--size-4-2);
+  color: var(--text-error);
+}
+
+.zyxdraw-prop-section > summary {
+  padding: var(--size-2-2) var(--size-4-2);
+  color: var(--text-muted);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+  user-select: none;
+}
+
+.zyxdraw-prop-count {
+  margin-left: var(--size-2-2);
+  padding: 0 var(--size-2-2);
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  font-weight: normal;
+}
+
+.zyxdraw-prop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--size-2-2) var(--size-4-4);
+  padding: 0 var(--size-4-2) var(--size-4-2);
+}
+
+.zyxdraw-prop-row {
+  display: grid;
+  grid-template-columns: 7.5em 1fr;
+  align-items: center;
+  gap: var(--size-2-2);
+}
+
+.zyxdraw-prop-label {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zyxdraw-prop-row.is-set .zyxdraw-prop-label {
+  color: var(--text-normal);
+}
+
+.zyxdraw-prop-required {
+  color: var(--text-error);
+}
+
+.zyxdraw-prop-control {
+  display: flex;
+  gap: var(--size-2-1);
+  min-width: 0;
+}
+
+.zyxdraw-prop-control input[type="text"],
+.zyxdraw-prop-control select {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--input-height);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+}
+
+.zyxdraw-prop-control input[type="text"]::placeholder {
+  color: var(--text-faint);
+}
+
+.zyxdraw-prop-color {
+  flex: 0 0 auto;
+  width: 2em;
+  height: var(--input-height);
+  padding: 2px;
+  cursor: pointer;
+}
+
+/* No color (none / transparent): faded swatch. */
+.zyxdraw-prop-color.is-none {
+  opacity: 0.4;
+}
+
+.zyxdraw-prop-row.is-invalid input,
+.zyxdraw-prop-row.is-invalid select {
+  border-color: var(--text-error);
+}
+
+.zyxdraw-prop-problem {
+  grid-column: 2;
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+}
+
+/* ---- notes: code blocks and embeds ---- */
+/* Same white frame as the .zyxd view and the exports: drawing colors (black lines, arrows)
+   assume a light background, whatever the Obsidian theme. */
+.zyxdraw-block svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: white;
+  box-shadow: 0 0 0 1px var(--background-modifier-border);
+}
+
+.zyxdraw-embed {
+  display: block;
+}
+
+/* ---- problems list ---- */
+.zyxdraw-problems {
+  flex: 0 0 auto;
+  max-height: 30%;
+  overflow: auto;
+}
+
+.zyxdraw-problems ul {
+  margin: 0;
+  /* Same room at the bottom as the property panel (status bar). */
+  padding: var(--size-2-2) var(--size-4-2) 3.5em;
+  list-style: none;
+  font-size: var(--font-ui-small);
+}
+
+.zyxdraw-problem {
+  padding: var(--size-2-1) var(--size-4-2);
+  border-left: 3px solid var(--text-error);
+  margin-bottom: var(--size-2-1);
+  background: var(--background-primary);
+}
+
+.zyxdraw-problem.is-warning {
+  border-left-color: var(--text-warning);
+}
+
+.zyxdraw-problem.is-clickable {
+  cursor: pointer;
+}
+
+.zyxdraw-problem.is-clickable:hover {
+  background: var(--background-modifier-hover);
+}
+
+.zyxdraw-problem-line {
+  color: var(--text-muted);
+}
+
+.zyxdraw-problem-code {
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+}
+
+/* "New ZyxDraw drawing" dialog: name field with the extension after it. */
+.zyxdraw-new-drawing-name {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.zyxdraw-new-drawing-name input {
+  flex: 1;
+}
+
+.zyxdraw-new-drawing-name span {
+  color: var(--text-muted);
+}
+
+.zyxdraw-new-drawing-problem {
+  min-height: 1.5em;
+  margin-top: var(--size-4-1);
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+}
+
+/*
+ * File explorer: themes that draw an icon before file names (usually a CSS mask on ::before)
+ * show the logo for .zyxd files instead. Only the picture is changed: themes without file
+ * icons draw no ::before box, so nothing appears there. The second selector uses only
+ * Obsidian's own classes, and is specific enough to win over a theme's icon rule.
+ * The url is generated from src/plugin/logo.ts (logoCssUrl); tests/plugin/logo.test.ts checks it.
+ */
+.nav-file-title[data-path$=".zyxd"] .nav-file-title-content::before,
+body .workspace-leaf-content[data-type="file-explorer"] .nav-file-title[data-path$=".zyxd"] .nav-file-title-content::before {
+  -webkit-mask-image: none;
+  mask-image: none;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22200%22%20height%3D%22200%22%20viewBox%3D%220%200%20200%20200%22%3E%3Cg%20transform%3D%22translate(34.2%2C28.2)%20translate(65.3%2076.3)%20rotate(-60)%20scale(1.25)%20translate(-65.3%20-76.3)%22%3E%3Cpath%20d%3D%22M%2056.4%205.3%20Q%2063.9%200%2070.9%205.3%20L%20128.3%2037.4%20L%20128.6%2049.8%20Q%20105.1%2054.8%2083.8%2077.6%20Q%2068.8%2094.2%2046.8%20116.4%20L%2057.4%20120.6%20Q%2063.6%20123.1%2068.8%20121.1%20L%20130.2%2098.5%20L%20130.6%20113%20L%2073%20148%20Q%2066.2%20152.6%2059.5%20148%20L%200.5%20115.5%20L%200%20103.1%20Q%2022.2%2099.3%2045.5%2074%20Q%2059.5%2056.9%2081.8%2036.4%20L%2072.4%2033.6%20Q%2064.2%2030%2058.5%2032.6%20L%200.9%2054%20L%200.6%2039%20Z%22%20fill%3D%22%2331bbec%22%20%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate(34.7%2C28)%20translate(65.3%2076.3)%20scale(1.1)%20translate(-65.3%20-76.3)%22%3E%3Cpath%20d%3D%22M%2056.4%205.3%20Q%2063.9%200%2070.9%205.3%20L%20128.3%2037.4%20L%20128.6%2049.8%20Q%20105.1%2054.8%2083.8%2077.6%20Q%2068.8%2094.2%2046.8%20116.4%20L%2057.4%20120.6%20Q%2063.6%20123.1%2068.8%20121.1%20L%20130.2%2098.5%20L%20130.6%20113%20L%2073%20148%20Q%2066.2%20152.6%2059.5%20148%20L%200.5%20115.5%20L%200%20103.1%20Q%2022.2%2099.3%2045.5%2074%20Q%2059.5%2056.9%2081.8%2036.4%20L%2072.4%2033.6%20Q%2064.2%2030%2058.5%2032.6%20L%200.9%2054%20L%200.6%2039%20Z%22%20fill%3D%22%23fbb904%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: none;
+  opacity: 1;
+}

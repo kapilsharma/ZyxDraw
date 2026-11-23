@@ -1,0 +1,59 @@
+# System design sample: a simple web system on an infinite canvas.
+# Request path: browser -> API gateway -> one of three app servers -> DB proxy -> database.
+# The app servers share a Redis cache.
+#
+# `service` and `database` come from the library in shapes/system.zyxd;
+# `browser` and `cache` are defined in this file.
+import service, database from shapes/system
+
+canvas(infinite)
+
+caption is style(font-size=14, fill=#1a1a1a)
+small is style(font-size=11, fill=#5b6470)
+
+# A browser window: title bar with three dots, the label in the page.
+browser is shape(label, width=150, height=90):
+  page is rect(width=100%, height=100%, rx=6, fill=white, stroke=#5b6470, stroke-width=2)
+  bar is rect(width=100%, height=20, rx=6, fill=#e6e9ed, stroke=#5b6470, stroke-width=2)
+  circle(cx=12, cy=10, r=3, fill=#e5534b)
+  circle(cx=22, cy=10, r=3, fill=#e7b416)
+  circle(cx=32, cy=10, r=3, fill=#3fb950)
+  name is text(label, x=50%, y=45, align=middle, style=caption)
+
+# An in-memory cache: a red box with a second line of text.
+cache is shape(label, note="in-memory", width=140, height=60):
+  body is rect(width=100%, height=100%, rx=8, fill=#fde2e1, stroke=#c0392b, stroke-width=2)
+  name is text(label, x=50%, y=14, align=middle, style=caption)
+  sub is text(note, x=50%, y=36, align=middle, style=small)
+
+title is text("Simple web system", x=0, y=0, font-size=22, font-weight=bold)
+
+client is browser(label="Client browser", x=0, y=140)
+gateway is service(label="API gateway", right-of=client 80, y=155, color=#ece3fb)
+
+# Three identical app servers in one tier. Percent works inside the group: it has a size.
+apps is group(right-of=gateway 80, y=40, width=190, height=290):
+  tier is rect(width=100%, height=100%, rx=10, fill=#f7f9fc, stroke=#9aa5b1, stroke-dasharray="6 4")
+  heading is text("App servers", x=50%, y=10, align=middle, style=small)
+  app1 is service(label="App server 1", x=25, y=35)
+  app2 is service(label="App server 2", x=25, y=115)
+  app3 is service(label="App server 3", x=25, y=195)
+
+redis is cache(label="Redis cache", below=apps 70, x=475)
+dbproxy is service(label="DB proxy", right-of=apps 80, y=155, color=#fdebd3)
+db is database(label="PostgreSQL", right-of=dbproxy 80, y=145)
+
+line(from=client, to=gateway, arrow=end, label="HTTPS")
+
+line(from=gateway, to=apps.app1, arrow=end)
+line(from=gateway, to=apps.app2, arrow=end, label="balance")
+line(from=gateway, to=apps.app3, arrow=end)
+
+line(from=apps.app1, to=dbproxy, arrow=end)
+line(from=apps.app2, to=dbproxy, arrow=end, label="SQL")
+line(from=apps.app3, to=dbproxy, arrow=end)
+
+# A label sits on its line, which suits sideways lines; this one is upright, so its text goes beside it.
+line(from=apps, to=redis, arrow=both, stroke-dasharray="5 4")
+text("get / set", below=apps 28, x=555, style=small)
+line(from=dbproxy, to=db, arrow=end, label="pool")

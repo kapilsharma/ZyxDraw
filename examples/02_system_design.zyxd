@@ -1,0 +1,17 @@
+# System design example: custom shapes imported from a custom library.
+import service, database, queue from shapes/system
+
+canvas(width=720, height=380, background=white)
+
+title is text("Order flow", x=50%, y=16, font-size=22, align=middle)
+
+web is service(label="Web app", x=40, y=80, width=140)
+api is service(label="API", right-of=web 80, y=80)
+orders is database(label="Orders DB", width=120, right-of=api 80, y=70)
+events is queue(label="order-events", below=api 70, x=260)
+mailer is service(label="Mailer", below=events 50, x=260)
+
+line(from=web, to=api, arrow=end, label="HTTPS")
+line(from=api, to=orders, arrow=end, label="SQL")
+line(from=api, to=events, arrow=end, label="publish")
+line(from=events, to=mailer, arrow=end, label="consume")
