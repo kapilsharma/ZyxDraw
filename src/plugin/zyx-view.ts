@@ -1,14 +1,16 @@
 import { Notice, Scope, TFile, TextFileView, WorkspaceLeaf, debounce, type Modifier, type ViewStateResult } from "obsidian";
 import { Compartment, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, lineNumbers, highlightActiveLine } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab, redo, undo } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab, redo, toggleComment, undo } from "@codemirror/commands";
 import { linter, lintGutter, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
 import {
   Diagnostics,
   editableShape,
   pointSourceRange,
   importCandidates,
+  layers,
   parse,
+  toggleHidden,
   shapeDefinition,
   type CompileResult,
   type DefinitionLink,
@@ -18,6 +20,7 @@ import {
 } from "../core";
 import { definitionAtCursor, definitionLinks } from "./navigate";
 import { DrawingEditor } from "./drawing";
+import { layerToggles, layerTracking, setLayers } from "./layers";
 import { LOGO_ICON } from "./logo";
 import { PropertyPanel } from "./properties";
 import { DEFAULT_SETTINGS } from "./settings";
@@ -65,6 +68,8 @@ export class ZyxView extends TextFileView {
   private propertiesSplitter: HTMLElement | null = null;
   /** Line wrapping, switchable without rebuilding the editor state (keeps undo history). */
   private readonly wrap = new Compartment();
+  /** Eye icons next to the line numbers (setting "Show layer toggles in the text editor"). */
+  private readonly eyes = new Compartment();
   /** A definition to show once the file's text is loaded (opened by go to definition). */
   private pendingReveal: { name: string | undefined; hops: number } | null = null;
   private propertiesVisible: boolean;
@@ -157,6 +162,23 @@ export class ZyxView extends TextFileView {
     this.editor?.dispatch({ effects: this.wrap.reconfigure(wrap ? EditorView.lineWrapping : []) });
   }
 
+  /** Turns the eye icons in the text editor on or off. */
+  setLayerToggles(on: boolean): void {
+    this.editor?.dispatch({ effects: this.eyes.reconfigure(this.eyeExtension(on)) });
+  }
+
+  private eyeExtension(on: boolean) {
+    return on ? layerToggles((path) => this.toggleLayer(path)) : [];
+  }
+
+  /** An eye was clicked: hide or show the shape, as one text edit. */
+  private toggleLayer(path: string): void {
+    const cur = this.current();
+    if (!cur) return; // a newer text is still compiling: the eyes will be redrawn for it
+    const { tree, scene, diagnostics } = cur.result;
+    this.applyEdit(toggleHidden({ source: cur.source, scene, tree, diagnostics }, path), cur.source);
+  }
+
   /** The grid or mouse coordinates setting changed. */
   refreshGuides(): void {
     this.drawing?.refreshGuides();
@@ -174,6 +196,12 @@ export class ZyxView extends TextFileView {
       [["Mod"], "d"],
       [["Mod"], "a"],
     ];
+    // Ctrl/Cmd+/ comments lines in the text editor, before Obsidian sees the key.
+    this.scope.register(["Mod"], "/", () => {
+      if (!this.editor?.hasFocus) return true;
+      toggleComment(this.editor);
+      return false;
+    });
     for (const [mods, key] of keys) {
       this.scope.register(mods, key, (evt) => {
         if (!this.drawing?.hasFocus()) return true;
@@ -377,6 +405,7 @@ export class ZyxView extends TextFileView {
     }
     if (version !== this.renderVersion || !this.drawing || !this.problemsEl) return;
     this.drawing.show(result.svg, result.scene.frame.infinite ?? false);
+    if (this.editor && this.editor.state.doc.toString() === source) this.editor.dispatch({ effects: setLayers.of(layers(result.scene)) });
     this.properties?.refresh();
     renderDiagnostics(this.problemsEl, source, result.diagnostics, (offset) => this.revealOffset(offset));
   }
@@ -393,8 +422,11 @@ export class ZyxView extends TextFileView {
         drawSelection(),
         obsidianTheme,
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+        // `Mod-/` is handled in the view scope only (see addDrawingHotkeys), so it never runs twice.
+        keymap.of([...defaultKeymap.filter((k) => k.key !== "Mod-/"), ...historyKeymap, indentWithTab]),
         this.wrap.of(this.plugin.settings.wrapText ? EditorView.lineWrapping : []),
+        layerTracking(),
+        this.eyes.of(this.eyeExtension(this.plugin.settings.showLayerToggles)),
         ...zyxLanguageSupport(),
         definitionLinks((link) => void this.goToDefinition(link)),
         lintGutter(),

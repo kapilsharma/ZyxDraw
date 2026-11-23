@@ -207,6 +207,48 @@ body.zyxdraw-resizing-y * {
   border-right: 1px solid var(--background-modifier-border);
 }
 
+/* ---- layer toggles: an eye next to each shape's line number (display=none) ---- */
+.zyxdraw-source .zyxdraw-layer-gutter .cm-gutterElement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zyxdraw-source .zyxdraw-eye {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 100%;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.zyxdraw-source .zyxdraw-eye svg {
+  width: 14px;
+  height: 14px;
+}
+
+.zyxdraw-source .zyxdraw-eye:hover {
+  color: var(--text-normal);
+  opacity: 1;
+}
+
+.zyxdraw-source .zyxdraw-eye.is-hidden-layer {
+  color: var(--text-accent);
+  opacity: 1;
+}
+
+.zyxdraw-source .zyxdraw-eye.is-hidden-by-group {
+  opacity: 0.25;
+}
+
+/* Lines of a hidden shape (and its children) are faded. */
+.zyxdraw-source .zyxdraw-hidden-line {
+  opacity: 0.45;
+}
+
 .zyxdraw-source .cm-activeLine {
   background: var(--background-modifier-hover);
 }

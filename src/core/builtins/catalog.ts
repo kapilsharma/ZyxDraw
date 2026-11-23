@@ -61,6 +61,8 @@ const presentation: Record<string, AttrSpec> = {
   "stroke-opacity": { kind: "number", min: 0, max: 1 },
   "stroke-dasharray": { kind: "dash" },
   opacity: { kind: "number", min: 0, max: 1 },
+  /** `none` hides the shape, like SVG. It is still laid out, so anchors and lines to it work. */
+  display: { kind: "enum", values: ["inline", "none"] },
   style: { kind: "styles" },
   /** Name of a `name is clip():` block. */
   "clip-path": { kind: "ref" },
@@ -225,6 +227,7 @@ export const PASSTHROUGH = [
   "stroke-opacity",
   "stroke-dasharray",
   "opacity",
+  "display",
   "font-family",
   "font-size",
   "font-weight",

@@ -15,6 +15,8 @@ export interface ZyxSettings {
   showProperties: boolean;
   /** Wrap long lines in the text editor. */
   wrapText: boolean;
+  /** Eye icons in the text editor that hide and show shapes (`display=none`). */
+  showLayerToggles: boolean;
   /** Width of the text pane in side by side mode, as a fraction of the view (drag to change). */
   sourceWidth: number;
   /** Height of the attributes panel, as a fraction of the drawing pane (drag to change). */
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: ZyxSettings = {
   defaultMode: "split",
   showProperties: false,
   wrapText: true,
+  showLayerToggles: true,
   sourceWidth: 0.5,
   propertiesHeight: 0.35,
   showGrid: false,
@@ -76,6 +79,17 @@ export class ZyxSettingTab extends PluginSettingTab {
           s.wrapText = v;
           await this.plugin.saveSettings();
           this.plugin.applyWrap();
+        }),
+      );
+
+    new Setting(containerEl)
+      .setName("Show layer toggles in the text editor")
+      .setDesc("An eye next to the line number of each shape. Click it to hide the shape (writes `display=none`) or show it again.")
+      .addToggle((t) =>
+        t.setValue(s.showLayerToggles).onChange(async (v) => {
+          s.showLayerToggles = v;
+          await this.plugin.saveSettings();
+          this.plugin.applyLayerToggles();
         }),
       );
 

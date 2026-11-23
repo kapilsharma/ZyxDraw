@@ -64,7 +64,7 @@ export interface PropertySheet {
 const SECTION: Record<string, PropertySection> = {};
 for (const n of ["x", "y", "right", "bottom", "right-of", "left-of", "above", "below", "cx", "cy", "x1", "y1", "x2", "y2"]) SECTION[n] = "Position";
 for (const n of ["width", "height", "r", "rx", "ry", "radius"]) SECTION[n] = "Size";
-for (const n of ["fill", "fill-opacity", "fill-rule", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray", "opacity"]) SECTION[n] = "Fill and stroke";
+for (const n of ["fill", "fill-opacity", "fill-rule", "stroke", "stroke-width", "stroke-opacity", "stroke-dasharray", "opacity", "display"]) SECTION[n] = "Fill and stroke";
 for (const n of ["font-size", "font-family", "font-weight", "font-style", "text-anchor"]) SECTION[n] = "Text";
 for (const n of ["from", "to", "arrow", "label"]) SECTION[n] = "Line";
 for (const n of ["rotate", "scale"]) SECTION[n] = "Rotate and scale";
@@ -81,6 +81,7 @@ const DEFAULTS: Record<string, string> = {
   stroke: "none",
   "stroke-width": "1",
   opacity: "1",
+  display: "inline",
   "fill-opacity": "1",
   "stroke-opacity": "1",
   "font-size": "16",

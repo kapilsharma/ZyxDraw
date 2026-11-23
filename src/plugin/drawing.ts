@@ -28,6 +28,7 @@ import {
   insertPoint,
   insertPolygon,
   insertShape,
+  isHiddenInDrawing,
   localOrigin,
   snapDelta,
   movePoint,
@@ -650,11 +651,25 @@ export class DrawingEditor {
       if (keep) this.centerOn(keep);
     }
     this.drawGrid();
+    this.dropHiddenFromSelection();
     this.drawOverlay();
     this.renderDraft();
     this.updatePaint();
     if (this.revealPointOnShow && this.selected && this.selectedPoint !== null) this.host.pointSelected(this.selected, this.selectedPoint);
     this.revealPointOnShow = false;
+  }
+
+  /** A shape just hidden (`display=none`) cannot stay selected: it is not on the drawing. */
+  private dropHiddenFromSelection(): void {
+    const t = this.target();
+    const paths = this.selectionPaths();
+    if (!t || paths.length === 0) return;
+    const shapes = allShapes(t.scene);
+    const visible = paths.filter((p) => {
+      const s = shapes.find((x) => x.path === p);
+      return !s || !isHiddenInDrawing(s);
+    });
+    if (visible.length !== paths.length) this.setSelection(visible);
   }
 
   select(path: string | null): void {
@@ -1389,6 +1404,7 @@ export class DrawingEditor {
     if (!t) return;
     const r = marqueeBox(d.start, delta.dx, delta.dy);
     const inside = t.scene.roots
+      .filter((s) => !isHiddenInDrawing(s))
       .map((s) => ({ s, b: geometry(t.scene, s)?.box }))
       .filter(({ b }) => b && b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h)
       .map(({ s }) => s.path);
@@ -1606,7 +1622,7 @@ export class DrawingEditor {
       else this.group();
     } else {
       const t = this.target();
-      if (t) this.setSelection(t.scene.roots.map((s) => s.path));
+      if (t) this.setSelection(t.scene.roots.filter((s) => !isHiddenInDrawing(s)).map((s) => s.path));
     }
     return true;
   }

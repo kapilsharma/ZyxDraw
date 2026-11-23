@@ -1,6 +1,6 @@
 /** Syntax colors and autocomplete for the ZyxDraw editor (CodeMirror 6, provided by Obsidian). */
 import { autocompletion, type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
-import type { Extension } from "@codemirror/state";
+import { EditorState, type Extension } from "@codemirror/state";
 import { GRADIENT, SHAPES, STOP, isShapeType, type AttrSpec } from "../core";
 import { zyxHighlighting } from "./highlight";
 
@@ -129,5 +129,10 @@ function complete(ctx: CompletionContext): CompletionResult | null {
 }
 
 export function zyxLanguageSupport(): Extension[] {
-  return [zyxHighlighting(), autocompletion({ override: [complete] })];
+  return [
+    zyxHighlighting(),
+    autocompletion({ override: [complete] }),
+    // Ctrl/Cmd+/ (toggle comment) needs to know the comment marker.
+    EditorState.languageData.of(() => [{ commentTokens: { line: "#" } }]),
+  ];
 }

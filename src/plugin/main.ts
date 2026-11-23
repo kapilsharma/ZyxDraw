@@ -177,6 +177,13 @@ export default class ZyxDrawPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  /** Applies the layer toggles setting to every open drawing. */
+  applyLayerToggles(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_ZYX)) {
+      if (leaf.view instanceof ZyxView) leaf.view.setLayerToggles(this.settings.showLayerToggles);
+    }
+  }
+
   /** Applies the wrapping setting to every open drawing. */
   applyWrap(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_ZYX)) {

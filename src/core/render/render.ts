@@ -203,7 +203,10 @@ class Renderer {
     if (label !== undefined) {
       const mx = (l.x1 + l.x2) / 2;
       const my = (l.y1 + l.y2) / 2 - 6;
-      out.push(`${indent}<text x="${fmt(mx)}" y="${fmt(my)}" text-anchor="middle"${attrText(transform)}>${esc(label)}</text>`);
+      // The label is its own element, so it hides with the line.
+      const display = this.str(s, "display");
+      const hide: [string, string][] = display === "none" ? [["display", "none"]] : [];
+      out.push(`${indent}<text x="${fmt(mx)}" y="${fmt(my)}" text-anchor="middle"${attrText([...transform, ...hide])}>${esc(label)}</text>`);
     }
   }
 

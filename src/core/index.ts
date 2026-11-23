@@ -61,6 +61,7 @@ export { GRADIENT, SHAPES, STOP, isShapeType, type ShapeType, type AttrSpec } fr
 export * from "./edit/edit";
 export * from "./edit/properties";
 export * from "./edit/arrange";
+export * from "./edit/visibility";
 export {
   canAddPoints,
   deletePoint,

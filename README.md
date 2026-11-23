@@ -254,6 +254,8 @@ The plugin, in its first version, comes with a lot of useful commands, and the l
   - Drawing only
     - We also have an attributes view below the drawing view.
 - **Go to definition:** `Ctrl` + click (`Cmd` on Mac) on a name in the text: a custom shape (opens its library in a new tab), an import path, a shape in `right-of=`, `from=`, ..., a style, a clip or a gradient. Hold `Ctrl` to see what is clickable. Also the command **ZyxDraw: Go to definition** (for the name at the cursor).
+- **Hide shapes while you work:** click the eye next to a shape's line number in the text to hide it (it writes `display=none`); click again to show it. The lines of a hidden shape are faded. Hidden shapes keep their place, so shapes and lines attached to them do not move. See [Hiding shapes](#hiding-shapes).
+- **Comment lines:** `Ctrl+/` (`Cmd+/` on Mac) comments or uncomments the selected lines in the text.
 - **In notes:** a fenced code block with the language `zyxd`, or an embed `![[diagram.zyxd]]`, shows the drawing.
 
 ## Editing on the drawing
@@ -261,7 +263,7 @@ The plugin, in its first version, comes with a lot of useful commands, and the l
 | Action | How |
 | ------ | --- |
 | Select | Click. The first click selects the outer group, clicking again goes one level deeper. Double-click selects the innermost shape |
-| Select several | `Shift`+click adds or removes a shape; drag a box on empty space to select the shapes inside it; `Ctrl+A` selects all. Move, nudge, delete, color, copy and group then work on all of them |
+| Select several | `Shift`+click adds or removes a shape; drag a box on empty space to select the shapes inside it; `Ctrl+A` selects all. Hidden shapes (`display=none`) are skipped. Move, nudge, delete, color, copy and group then work on all of them |
 | Move | Drag, or arrow keys (Shift for 10 px) |
 | Resize | Drag a handle (rectangles, circles, ellipses, groups with a size) |
 | Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve control points (circles). A point takes its curve handles along, and a smooth point stays smooth when you drag one of its handles (hold `Alt` to make a corner). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text |
@@ -442,6 +444,15 @@ b is rect(width=100, height=60, style=card bold, fill=yellow)   # own attributes
 
 Several styles apply left to right. Styles cannot set positions.
 
+### Hiding shapes
+
+```python
+back is rect(width=300, height=200, fill=lightgray, display=none)
+front is rect(x=20, y=20, width=100, height=60, fill=orange)
+```
+
+`display=none` hides a shape, a group or a custom shape, as in SVG. It still has its place, so anchors (`right-of=back`) and lines to it keep working. It is saved in the file and exported as `display="none"`. The eye next to each shape in the text editor adds or removes it. Hidden shapes cannot be selected in the drawing.
+
 ### Clipping
 
 ```python
@@ -499,6 +510,7 @@ Commands, or the file menu of a `.zyxd` file:
 
 - Default view (split, text, drawing).
 - Wrap long lines in the text editor (also the command **ZyxDraw: Toggle text wrapping**).
+- Show layer toggles in the text editor: the eye icons that hide and show shapes.
 - Show grid, and show mouse coordinates (also toolbar buttons and the commands **Toggle grid** / **Toggle mouse coordinates**).
 - Unit for new positions and sizes written by the drawing view (percent or pixels).
 - PNG scale and background.
