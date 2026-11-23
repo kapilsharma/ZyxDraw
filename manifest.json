@@ -1,7 +1,7 @@
 {
   "id": "zyxdraw",
   "name": "ZyxDraw",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "minAppVersion": "1.5.0",
   "description": "Diagram-as-code: write drawings in short readable text, see them live, and edit them by dragging.",
   "author": "TODO",
