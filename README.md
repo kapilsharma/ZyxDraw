@@ -524,6 +524,8 @@ Nothing is read in the background, and nothing leaves your device.
 - Unit for new positions and sizes written by the drawing view (percent or pixels).
 - PNG scale and background.
 
+In Obsidian 1.13 or later, these settings also show up in the settings search.
+
 ## Development
 
 Requirements: Node.js (LTS or newer) and npm.
