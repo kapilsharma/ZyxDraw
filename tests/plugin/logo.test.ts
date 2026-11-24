@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { compile } from "../../src/core";
 import { readFileSync } from "node:fs";
-import { LOGO_SOURCE, logoCssUrl, logoIconContent, logoSvg } from "../../src/plugin/logo";
+import { LOGO_SOURCE, logoIconContent, logoSvg } from "../../src/plugin/logo";
 
 describe("logo", () => {
   it("compiles without problems", () => {
@@ -14,10 +14,9 @@ describe("logo", () => {
     expect(svg.indexOf("#31bbec")).toBeLessThan(svg.indexOf("#fbb904"));
   });
 
-  it("styles.css has the current logo for the file explorer icon", () => {
+  it("styles.css uses no CSS masks (Obsidian's review warns about them, #14)", () => {
     const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8");
-    // If this fails after changing the logo, replace the url in styles.css with logoCssUrl().
-    expect(css).toContain(`background-image: ${logoCssUrl()};`);
+    expect(css).not.toMatch(/mask(-image)?\s*:/);
   });
 
   it("gives Obsidian an icon in a 100 x 100 box, without the svg element", () => {
