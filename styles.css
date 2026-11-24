@@ -24,21 +24,23 @@
   background-color: var(--interactive-accent-hover);
 }
 
-/* Property panel toggle, left of the mode group: highlighted while the panel is shown. */
-.zyxdraw-properties-button {
+/* Attributes button, left of the mode group: highlighted while the bottom panel is shown. */
+.zyxdraw-attributes-button {
   margin-right: var(--size-2-2);
 }
 
-.zyxdraw-properties-button.is-active {
+.zyxdraw-attributes-button.is-active {
   color: var(--text-on-accent);
   background-color: var(--interactive-accent);
 }
 
-.zyxdraw-properties-button.is-active:hover {
+.zyxdraw-attributes-button.is-active:hover {
   background-color: var(--interactive-accent-hover);
 }
 
-/* ---- view layout and modes ---- */
+/* ---- view layout and modes ----
+ * Panels (issue #8): left panel (text) | center column = drawing area over the bottom panel
+ * (Attributes). A right panel is planned. */
 /* More specific than Obsidian's padding on a view's content. */
 .workspace-leaf-content .view-content.zyxdraw-view {
   padding: 0;
@@ -50,41 +52,41 @@
   overflow: hidden;
 }
 
-.zyxdraw-source,
-.zyxdraw-preview {
+.zyxdraw-left-panel,
+.zyxdraw-center {
   flex: 1 1 50%;
   min-width: 0;
 }
 
-.zyxdraw-view.mode-source .zyxdraw-preview,
-.zyxdraw-view.mode-drawing .zyxdraw-source {
+.zyxdraw-view.mode-source .zyxdraw-center,
+.zyxdraw-view.mode-drawing .zyxdraw-left-panel {
   display: none;
 }
 
-.zyxdraw-source {
+.zyxdraw-left-panel {
   overflow: auto;
 }
 
-/* The text pane width is set from the drag handle (--zyxdraw-source-width); alone, it fills the view. */
-.zyxdraw-view .zyxdraw-source {
-  flex: 0 0 var(--zyxdraw-source-width, 50%);
+/* The left panel width is set from the drag handle (--zyxdraw-left-panel-width); alone, it fills the view. */
+.zyxdraw-view .zyxdraw-left-panel {
+  flex: 0 0 var(--zyxdraw-left-panel-width, 50%);
 }
 
-.zyxdraw-view.mode-source .zyxdraw-source {
+.zyxdraw-view.mode-source .zyxdraw-left-panel {
   flex: 1 1 0;
 }
 
 /* Wrapping long lines (command "Toggle text wrapping"), enforced here as well in case a theme
    or Obsidian's own editor styles keep `white-space: pre`. Specific enough to win without
    `!important`. */
-.zyxdraw-view.is-wrapping .zyxdraw-source .cm-editor .cm-content {
+.zyxdraw-view.is-wrapping .zyxdraw-left-panel .cm-editor .cm-content {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   width: auto;
   flex-shrink: 1;
 }
 
-.zyxdraw-view:not(.is-wrapping) .zyxdraw-source .cm-editor .cm-content {
+.zyxdraw-view:not(.is-wrapping) .zyxdraw-left-panel .cm-editor .cm-content {
   white-space: pre;
 }
 
@@ -151,7 +153,7 @@ body.zyxdraw-resizing-y * {
   user-select: none;
 }
 
-.zyxdraw-source .cm-editor {
+.zyxdraw-left-panel .cm-editor {
   height: 100%;
   font-family: var(--font-monospace);
   font-size: var(--font-text-size);
@@ -159,21 +161,21 @@ body.zyxdraw-resizing-y * {
   background: var(--background-primary);
 }
 
-.zyxdraw-source .cm-editor.cm-focused {
+.zyxdraw-left-panel .cm-editor.cm-focused {
   outline: none;
 }
 
 /* Cursor and selection in theme colors (CodeMirror's defaults are black, invisible on dark themes). */
-.zyxdraw-source .cm-content {
+.zyxdraw-left-panel .cm-content {
   caret-color: var(--caret-color, var(--text-normal));
 }
 
-.zyxdraw-source .cm-cursor,
-.zyxdraw-source .cm-dropCursor {
+.zyxdraw-left-panel .cm-cursor,
+.zyxdraw-left-panel .cm-dropCursor {
   border-left: 2px solid var(--caret-color, var(--text-normal));
 }
 
-.zyxdraw-source .cm-editor.cm-focused .cm-cursorLayer {
+.zyxdraw-left-panel .cm-editor.cm-focused .cm-cursorLayer {
   visibility: visible;
 }
 
@@ -182,8 +184,8 @@ body.zyxdraw-resizing-y * {
  * `.cm-focused > .cm-scroller > .cm-selectionLayer ...` (a near-white lavender); these selectors
  * are more specific. The native selection is hidden by CodeMirror (drawSelection).
  */
-.zyxdraw-view .zyxdraw-source .cm-editor .cm-selectionLayer .cm-selectionBackground,
-.zyxdraw-view .zyxdraw-source .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+.zyxdraw-view .zyxdraw-left-panel .cm-editor .cm-selectionLayer .cm-selectionBackground,
+.zyxdraw-view .zyxdraw-left-panel .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
   background: var(--text-selection, rgba(127, 127, 255, 0.3));
 }
 
@@ -205,35 +207,35 @@ body.zyxdraw-resizing-y * {
 .zyxdraw-tok-operator { --zyxdraw-tok: var(--code-operator, #abb2bf); }
 .zyxdraw-tok-variable { --zyxdraw-tok: var(--code-normal, var(--text-normal)); }
 
-.zyxdraw-view .zyxdraw-source .cm-content .cm-line [class*="zyxdraw-tok-"],
-.zyxdraw-view .zyxdraw-source .cm-content .cm-line [class*="zyxdraw-tok-"] *,
+.zyxdraw-view .zyxdraw-left-panel .cm-content .cm-line [class*="zyxdraw-tok-"],
+.zyxdraw-view .zyxdraw-left-panel .cm-content .cm-line [class*="zyxdraw-tok-"] *,
 .markdown-source-view.mod-cm6 .cm-content .cm-line [class*="zyxdraw-tok-"],
 .markdown-source-view.mod-cm6 .cm-content .cm-line [class*="zyxdraw-tok-"] * {
   color: var(--zyxdraw-tok);
 }
 
 /* Ctrl/Cmd held over a name: it is a link to its definition. */
-.zyxdraw-view .zyxdraw-source .cm-content .zyxdraw-link,
-.zyxdraw-view .zyxdraw-source .cm-content .zyxdraw-link * {
+.zyxdraw-view .zyxdraw-left-panel .cm-content .zyxdraw-link,
+.zyxdraw-view .zyxdraw-left-panel .cm-content .zyxdraw-link * {
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
 }
 
-.zyxdraw-source .cm-gutters {
+.zyxdraw-left-panel .cm-gutters {
   background: var(--background-secondary);
   color: var(--text-faint);
   border-right: 1px solid var(--background-modifier-border);
 }
 
 /* ---- layer toggles: an eye next to each shape's line number (display=none) ---- */
-.zyxdraw-source .zyxdraw-layer-gutter .cm-gutterElement {
+.zyxdraw-left-panel .zyxdraw-layer-gutter .cm-gutterElement {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.zyxdraw-source .zyxdraw-eye {
+.zyxdraw-left-panel .zyxdraw-eye {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -244,35 +246,35 @@ body.zyxdraw-resizing-y * {
   opacity: 0.5;
 }
 
-.zyxdraw-source .zyxdraw-eye svg {
+.zyxdraw-left-panel .zyxdraw-eye svg {
   width: 14px;
   height: 14px;
 }
 
-.zyxdraw-source .zyxdraw-eye:hover {
+.zyxdraw-left-panel .zyxdraw-eye:hover {
   color: var(--text-normal);
   opacity: 1;
 }
 
-.zyxdraw-source .zyxdraw-eye.is-hidden-layer {
+.zyxdraw-left-panel .zyxdraw-eye.is-hidden-layer {
   color: var(--text-accent);
   opacity: 1;
 }
 
-.zyxdraw-source .zyxdraw-eye.is-hidden-by-group {
+.zyxdraw-left-panel .zyxdraw-eye.is-hidden-by-group {
   opacity: 0.25;
 }
 
 /* Lines of a hidden shape (and its children) are faded. */
-.zyxdraw-source .zyxdraw-hidden-line {
+.zyxdraw-left-panel .zyxdraw-hidden-line {
   opacity: 0.45;
 }
 
-.zyxdraw-source .cm-activeLine {
+.zyxdraw-left-panel .cm-activeLine {
   background: var(--background-modifier-hover);
 }
 
-.zyxdraw-preview {
+.zyxdraw-center {
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -280,7 +282,7 @@ body.zyxdraw-resizing-y * {
 }
 
 /* ---- drawing ---- */
-.zyxdraw-drawing {
+.zyxdraw-drawing-area {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -563,22 +565,30 @@ body.zyxdraw-resizing-y * {
   display: none;
 }
 
-/* ---- property panel (under the drawing) ---- */
-/* Height set from the drag handle above it (a fraction of the drawing pane). */
-.zyxdraw-properties {
+/* ---- bottom panel (under the drawing area) ---- */
+/* Height set from the drag handle above it (a fraction of the center column). */
+.zyxdraw-bottom-panel {
+  display: flex;
+  flex-direction: column;
   flex: 0 0 auto;
-  /* Set from the drag handle. */
-  height: var(--zyxdraw-properties-height, 35%);
+  height: var(--zyxdraw-bottom-panel-height, 35%);
   min-height: 3em;
-  overflow: auto;
-  /* Room to scroll the last fields above Obsidian's status bar, which floats over the pane. */
-  padding-bottom: 3.5em;
+  overflow: hidden;
   background: var(--background-primary);
-  font-size: var(--font-ui-small);
 }
 
-.zyxdraw-properties.is-hidden {
+.zyxdraw-bottom-panel.is-hidden {
   display: none;
+}
+
+/* ---- Attributes (shown in the bottom panel) ---- */
+.zyxdraw-attributes {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  /* Room to scroll the last fields above Obsidian's status bar, which floats over the panel. */
+  padding-bottom: 3.5em;
+  font-size: var(--font-ui-small);
 }
 
 .zyxdraw-prop-header {
@@ -733,7 +743,7 @@ body.zyxdraw-resizing-y * {
 
 .zyxdraw-problems ul {
   margin: 0;
-  /* Same room at the bottom as the property panel (status bar). */
+  /* Same room at the bottom as the Attributes (status bar). */
   padding: var(--size-2-2) var(--size-4-2) 3.5em;
   list-style: none;
   font-size: var(--font-ui-small);

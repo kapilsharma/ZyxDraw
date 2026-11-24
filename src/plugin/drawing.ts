@@ -51,7 +51,7 @@ import {
   type Reorder,
   type Shape,
 } from "../core";
-import { colorToHex, hasSyntaxErrors } from "./properties";
+import { colorToHex, hasSyntaxErrors } from "./attributes";
 import type { Guide } from "./settings";
 import { uniqueIds } from "./svg";
 
@@ -196,7 +196,7 @@ export class DrawingEditor {
     parent: HTMLElement,
     private readonly host: DrawingHost,
   ) {
-    this.el = parent.createDiv({ cls: "zyxdraw-drawing" });
+    this.el = parent.createDiv({ cls: "zyxdraw-drawing-area" });
     this.buildToolbar(this.el.createDiv({ cls: "zyxdraw-toolbar" }));
     this.stage = this.el.createDiv({ cls: "zyxdraw-stage", attr: { tabindex: "0" } });
 
@@ -692,7 +692,7 @@ export class DrawingEditor {
     return this.multi.length > 1 ? this.multi : this.selected ? [this.selected] : [];
   }
 
-  /** Selects several shapes; the last one is shown in the attributes panel. */
+  /** Selects several shapes; the last one is shown in the Attributes (bottom panel). */
   private setSelection(paths: string[]): void {
     const unique = [...new Set(paths)];
     if (unique.length <= 1) {
@@ -715,7 +715,7 @@ export class DrawingEditor {
     this.setSelection(current.includes(path) ? current.filter((p) => p !== path) : [...current, path]);
   }
 
-  /** Whether the keyboard is in the drawing (not the text or the attributes panel). */
+  /** Whether the keyboard is in the drawing (not the left panel or the bottom panel). */
   hasFocus(): boolean {
     const active = this.stage.doc.activeElement;
     return !!active && this.stage.contains(active);
@@ -768,7 +768,7 @@ export class DrawingEditor {
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });
     button("zoom-out", "Zoom out", () => this.setZoom((this.zoom ?? this.fitZoom()) / 1.25));
     button("zoom-in", "Zoom in", () => this.setZoom((this.zoom ?? this.fitZoom()) * 1.25));
-    button("maximize", "Fit to pane", () => this.setZoom(null));
+    button("maximize", "Fit to drawing area", () => this.setZoom(null));
   }
 
   // ---- fill and stroke --------------------------------------------------------------------

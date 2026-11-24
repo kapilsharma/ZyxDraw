@@ -11,15 +11,15 @@ export interface ZyxSettings {
   /** PNG export scale (2 = twice the drawing size). */
   pngScale: number;
   pngBackground: "transparent" | "white";
-  /** Attributes panel under the drawing: last choice, used for newly opened drawings. */
+  /** Bottom panel (Attributes) under the drawing area: last choice, used for newly opened drawings. */
   showProperties: boolean;
   /** Wrap long lines in the text editor. */
   wrapText: boolean;
   /** Eye icons in the text editor that hide and show shapes (`display=none`). */
   showLayerToggles: boolean;
-  /** Width of the text pane in side by side mode, as a fraction of the view (drag to change). */
+  /** Width of the left panel (text) in side by side mode, as a fraction of the view (drag to change). Key kept for saved settings. */
   sourceWidth: number;
-  /** Height of the attributes panel, as a fraction of the drawing pane (drag to change). */
+  /** Height of the bottom panel, as a fraction of the drawing area's column (drag to change). Key kept for saved settings. */
   propertiesHeight: number;
   /** Grid lines over the drawing view. */
   showGrid: boolean;
@@ -92,7 +92,7 @@ export class ZyxSettingTab extends PluginSettingTab {
       },
       {
         name: "Unit for new positions and sizes",
-        desc: "Used when the drawing view writes a value that has no unit yet. Existing values keep their unit.",
+        desc: "Used when an edit in the drawing area writes a value that has no unit yet. Existing values keep their unit.",
         control: {
           type: "dropdown",
           key: "defaultUnit",
