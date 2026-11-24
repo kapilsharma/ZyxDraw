@@ -5,7 +5,7 @@ import type { Attr, Expr, SourceRange, Statement, SyntaxTree, Value } from "../s
 import { parse } from "../syntax/parser";
 import { importCandidates } from "./library";
 
-const KEYWORDS = new Set(["style", "canvas", "shape", "import", "clip", "gradient"]);
+const KEYWORDS = new Set(["style", "canvas", "shape", "import", "clip", "gradient", "layer"]);
 
 /** Attributes whose value may name a gradient. */
 const PAINT_ATTRS = ["fill", "stroke"];
@@ -67,6 +67,11 @@ export interface Shape {
   generated?: boolean;
   /** Clip applied with `clip-path=name`: its shapes, laid out in this shape's box. */
   clip?: { name: string; shapes: Shape[] };
+  /**
+   * Written with `layer` (issue #11): a group at the top level of the drawing. Drawn as a group;
+   * without a `width` / `height` it covers the canvas.
+   */
+  layer?: boolean;
 }
 
 /** A `name is clip():` block. Its shapes are resolved once, on first use. */
@@ -599,7 +604,15 @@ function resolveShape(
   childCtx: Ctx = ctx,
 ): Shape | null {
   const { diags } = ctx;
-  if (!isShapeType(stmt.keyword)) {
+  // `layer` is a group with rules: top level of the drawing only.
+  let isLayer = stmt.keyword === "layer";
+  if (isLayer && (parent || ctx.defStack.length > 0)) {
+    const where = ctx.defStack.length > 0 ? "a custom shape" : parent?.layer ? "another layer" : `\`${parent!.path}\``;
+    diags.error(Code.LayerNotTopLevel, `A layer must be at the top level of the drawing, not inside ${where}. Use \`group\` there`, stmt.keywordRange);
+    isLayer = false; // still drawn, as a group
+  }
+  const keyword = stmt.keyword === "layer" ? "group" : stmt.keyword;
+  if (!isShapeType(keyword)) {
     const def = ctx.scope.defs.get(stmt.keyword);
     if (def) return expandInstance(stmt, def, parent, names, ctx);
     diags.error(
@@ -609,7 +622,7 @@ function resolveShape(
     );
     return null;
   }
-  const type = stmt.keyword;
+  const type: ShapeType = keyword;
   const spec = SHAPES[type];
 
   // Name: unique among siblings only.
@@ -621,7 +634,7 @@ function resolveShape(
     }
   }
   const id = ctx.counter.next++;
-  const local = stmt.name ?? `${type}#${id}`;
+  const local = stmt.name ?? `${stmt.keyword === "layer" ? "layer" : type}#${id}`;
   const path = parent ? `${parent.path}.${local}` : local;
 
   // Own attributes.
@@ -679,6 +692,7 @@ function resolveShape(
   }
 
   const shape: Shape = { id, type, spec, name: stmt.name, path, parent, children: [], attrs, stmt, source: stmt };
+  if (isLayer) shape.layer = true;
 
   if (!checkShape(shape, stmt, own, diags)) return null;
 

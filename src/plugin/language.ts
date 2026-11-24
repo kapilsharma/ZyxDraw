@@ -87,6 +87,7 @@ function complete(ctx: CompletionContext): CompletionResult | null {
     const line = before.slice(before.lastIndexOf("\n") + 1);
     const types = [
       ...BUILTINS.map((label) => ({ label, type: "class", detail: "shape" })),
+      { label: "layer", type: "class", detail: "layer (top level)" },
       ...names.defs.map((label) => ({ label, type: "class", detail: "custom shape" })),
     ];
     if (line.trim() === "") {

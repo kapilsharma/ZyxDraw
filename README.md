@@ -112,7 +112,7 @@ primary is style(fill=yellow, stroke=red, stroke-width=2)
 
 The syntax is `name is type`. Here, `primary` is just a name that we want to refer to later, while applying the style.
 
-`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas` and `import`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either.
+`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas`, `import` and `layer`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either.
 
 After style, we have `()`. Within it, we have attributes, which are in the format `attribute=value`. There is a huge list of attributes, which we will see later in detail. They are also listed in the **Attributes**, in the bottom panel under the drawing area.
 
@@ -252,7 +252,7 @@ The plugin, in its first version, comes with a lot of useful commands, and the l
   - **Left panel:** the text.
   - **Drawing area:** the drawing and its toolbar.
   - **Bottom panel**, under the drawing area: the **Attributes** of the selected shape. The **Attributes** button in the view header shows or hides it.
-  - A **right panel** is planned.
+  - **Right panel**: the **Layers**. The **Layers** button in the view header shows or hides it.
 - **Three views:** buttons in the view header, or the `ZyxDraw: Show ...` commands.
   - Text and drawing side by side (left panel and drawing area)
   - Text only (left panel)
@@ -437,6 +437,21 @@ line(from=server.box, to=db)
 ```
 
 Attributes go in `( )`, children are indented below `:`. Names only need to be unique among siblings; refer to a child as `server.box`. Children are placed from the group's top-left. A group whose children use `%` needs a `width` and `height`.
+
+### Layers
+
+```python
+background is layer():
+  sky is rect(width=100%, height=100%, fill=lightblue)
+shapes is layer():
+  sun is circle(x=80%, y=10%, r=20, fill=gold)
+```
+
+A layer is a group for one part of the drawing. It is written at the top level only (not inside a group, a custom shape or another layer), and without a `width` / `height` it covers the canvas, so `%` works inside it. Later layers are drawn in front. In SVG it is a plain `<g>`.
+
+The **Layers** view in the right panel lists every top-level shape, group and layer, front-most first; layers and groups open to show their shapes. Click a row to select the shape; its layer becomes the **active layer**, and new shapes you draw or paste go into it. The eye on a row hides or shows it (`display=none`), **+** adds a new layer. Drag a row to put it in front of or behind another row, or into a layer or group; the shape stays in place on the canvas. Right-click a row to delete it. A click in the drawing selects what is in a layer, never the whole layer.
+
+Shapes can refer to shapes in any layer, in front or behind (`right-of=back.sky`): the whole drawing is read before anything is placed. Moving a shape to another layer changes its path (`back.sky` becomes `front.sky`), so before such a move or a delete breaks a reference, ZyxDraw lists what would break and lets you go ahead or cancel.
 
 ### Styles
 

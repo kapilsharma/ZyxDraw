@@ -24,23 +24,25 @@
   background-color: var(--interactive-accent-hover);
 }
 
-/* Attributes button, left of the mode group: highlighted while the bottom panel is shown. */
+/* Layers and Attributes buttons, left of the mode group: highlighted while their panel is shown. */
 .zyxdraw-attributes-button {
   margin-right: var(--size-2-2);
 }
 
+.zyxdraw-layers-button.is-active,
 .zyxdraw-attributes-button.is-active {
   color: var(--text-on-accent);
   background-color: var(--interactive-accent);
 }
 
+.zyxdraw-layers-button.is-active:hover,
 .zyxdraw-attributes-button.is-active:hover {
   background-color: var(--interactive-accent-hover);
 }
 
 /* ---- view layout and modes ----
  * Panels (issue #8): left panel (text) | center column = drawing area over the bottom panel
- * (Attributes). A right panel is planned. */
+ * (Attributes) | right panel (Layers, issue #11). */
 /* More specific than Obsidian's padding on a view's content. */
 .workspace-leaf-content .view-content.zyxdraw-view {
   padding: 0;
@@ -74,6 +76,20 @@
 
 .zyxdraw-view.mode-source .zyxdraw-left-panel {
   flex: 1 1 0;
+}
+
+/* Right panel: width set from its drag handle (--zyxdraw-right-panel-width). */
+.zyxdraw-right-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--zyxdraw-right-panel-width, 20%);
+  min-width: 0;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.zyxdraw-right-panel.is-hidden {
+  display: none;
 }
 
 /* Wrapping long lines (command "Toggle text wrapping"), enforced here as well in case a theme
@@ -134,7 +150,7 @@
 }
 
 .zyxdraw-splitter.is-hidden,
-.zyxdraw-view:not(.mode-split) .zyxdraw-splitter.is-vertical {
+.zyxdraw-view:not(.mode-split) .zyxdraw-splitter.is-vertical:not(.is-right) {
   display: none;
 }
 
@@ -817,4 +833,144 @@ body .workspace-leaf-content[data-type="file-explorer"] .nav-file-title[data-pat
   background-position: center;
   filter: none;
   opacity: 1;
+}
+
+/* ---- Layers (shown in the right panel, issue #11) ---- */
+.zyxdraw-layers {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-size: var(--font-ui-small);
+}
+
+.zyxdraw-layers-header {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: var(--size-2-2) var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.zyxdraw-layers-title {
+  flex: 1;
+  font-weight: var(--font-semibold);
+}
+
+.zyxdraw-layers-header .clickable-icon.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.zyxdraw-layers-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--size-2-1) 0 3.5em;
+}
+
+.zyxdraw-layers-empty {
+  padding: var(--size-4-2);
+  color: var(--text-muted);
+}
+
+.zyxdraw-layer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: 1px var(--size-4-1) 1px calc(var(--size-4-1) + var(--zyxdraw-layer-depth, 0) * 14px);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.zyxdraw-layer-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.zyxdraw-layer-row.is-selected {
+  background: var(--background-modifier-active-hover);
+}
+
+.zyxdraw-layer-row.is-active-layer {
+  border-left-color: var(--interactive-accent);
+}
+
+.zyxdraw-layer-row.is-layer .zyxdraw-layer-label {
+  font-weight: var(--font-semibold);
+}
+
+.zyxdraw-layer-row.is-hidden .zyxdraw-layer-icon,
+.zyxdraw-layer-row.is-hidden .zyxdraw-layer-label {
+  opacity: 0.45;
+}
+
+.zyxdraw-layer-twisty,
+.zyxdraw-layer-icon {
+  display: flex;
+  flex: 0 0 auto;
+  width: 14px;
+  color: var(--text-muted);
+}
+
+.zyxdraw-layer-twisty svg,
+.zyxdraw-layer-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.zyxdraw-layer-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zyxdraw-layer-label.is-unnamed {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.zyxdraw-layer-detail {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.zyxdraw-layer-row .zyxdraw-layer-eye {
+  flex: 0 0 auto;
+  padding: 2px;
+  opacity: 0;
+}
+
+.zyxdraw-layer-row:hover .zyxdraw-layer-eye,
+.zyxdraw-layer-row .zyxdraw-layer-eye.is-off,
+.zyxdraw-layer-row .zyxdraw-layer-eye:focus-visible {
+  opacity: 1;
+}
+
+.zyxdraw-layer-row .zyxdraw-layer-eye svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Dragging a row: where it will go (in front of, behind, or into the row). */
+.zyxdraw-layer-row.is-dragging {
+  opacity: 0.5;
+}
+
+.zyxdraw-layer-row.is-drop-above {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.zyxdraw-layer-row.is-drop-below {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
+.zyxdraw-layer-row.is-drop-into {
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+.zyxdraw-confirm ul {
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
 }

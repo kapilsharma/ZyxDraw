@@ -19,6 +19,10 @@ export interface ZyxSettings {
   showLayerToggles: boolean;
   /** Width of the left panel (text) in side by side mode, as a fraction of the view (drag to change). Key kept for saved settings. */
   sourceWidth: number;
+  /** Layers view in the right panel (issue #11): last choice, used for newly opened drawings. */
+  showLayers: boolean;
+  /** Width of the right panel, as a fraction of the view (drag to change). */
+  rightPanelWidth: number;
   /** Height of the bottom panel, as a fraction of the drawing area's column (drag to change). Key kept for saved settings. */
   propertiesHeight: number;
   /** Grid lines over the drawing view. */
@@ -37,6 +41,8 @@ export const DEFAULT_SETTINGS: ZyxSettings = {
   showLayerToggles: true,
   sourceWidth: 0.5,
   propertiesHeight: 0.35,
+  showLayers: true,
+  rightPanelWidth: 0.2,
   showGrid: false,
   showCoordinates: true,
   pngScale: 2,

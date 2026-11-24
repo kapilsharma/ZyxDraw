@@ -4,6 +4,7 @@
  * committed field becomes a text edit (core/edit/properties), then everything is recompiled.
  */
 import { Notice, setIcon } from "obsidian";
+import type { PanelView } from "./panels";
 import {
   SECTION_ORDER,
   allShapes,
@@ -31,7 +32,7 @@ export function hasSyntaxErrors(result: CompileResult): boolean {
 
 const COLOR_KINDS = new Set(["paint"]);
 
-export class AttributesForm {
+export class AttributesForm implements PanelView {
   readonly el: HTMLElement;
   private path: string | null = null;
   /** Sections the user closed, kept while switching shapes. */

@@ -5,7 +5,7 @@ import { SHAPES } from "../builtins/catalog";
 
 /** Words that cannot be names: keywords and the built-in shape types. */
 const RESERVED = new Map<string, string>([
-  ...["is", "style", "shape", "clip", "gradient", "canvas", "import"].map((k): [string, string] => [k, "keyword"]),
+  ...["is", "style", "shape", "clip", "gradient", "canvas", "import", "layer"].map((k): [string, string] => [k, "keyword"]),
   ...Object.keys(SHAPES).map((k): [string, string] => [k, "built-in shape type"]),
 ]);
 
