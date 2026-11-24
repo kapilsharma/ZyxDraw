@@ -32,6 +32,8 @@ export const Code = {
   OldSyntax: "ZYX013",
   /** A name that is a keyword or a shape type (`is`, `rect`, `style`, ...). */
   ReservedName: "ZYX014",
+  /** A library name in an import that is not `folder.file` (a `/`, an extension, other characters). */
+  InvalidLibraryName: "ZYX015",
 
   UnknownType: "ZYX101",
   NotSupportedYet: "ZYX102",
@@ -58,6 +60,10 @@ export const Code = {
   InvalidGradient: "ZYX123",
   /** `layer` inside a group, a custom shape or another layer: layers are top level only. */
   LayerNotTopLevel: "ZYX124",
+  /** `canvas` or a shape at the top level of a `.zyxdl` library: a library draws nothing. */
+  LibraryDraws: "ZYX125",
+  /** `export` in a drawing, or of a name the library does not have. */
+  Export: "ZYX126",
 
   UnknownShape: "ZYX201",
   PositionConflict: "ZYX202",

@@ -1,5 +1,8 @@
 # A small library of system-design shapes.
-# Use it with: import service, database, queue from shapes/system.zyxd
+# Use it with: import service, database, queue from shapes.system
+# Only the exported shapes can be imported; the style `label` stays inside this library.
+
+export service, database, queue
 
 label is style(font-size=14, fill=#1a1a1a)
 

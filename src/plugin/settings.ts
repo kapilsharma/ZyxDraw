@@ -29,6 +29,8 @@ export interface ZyxSettings {
   showGrid: boolean;
   /** Mouse position in the status bar while over the drawing view. */
   showCoordinates: boolean;
+  /** Vault folder of shared libraries (`.zyxdl`), searched after the drawing's own folder. */
+  libraryFolder: string;
 }
 
 export type Guide = "grid" | "coordinates";
@@ -47,9 +49,10 @@ export const DEFAULT_SETTINGS: ZyxSettings = {
   showCoordinates: true,
   pngScale: 2,
   pngBackground: "transparent",
+  libraryFolder: "ZyxDrawLibrary",
 };
 
-type ControlKey = "defaultMode" | "wrapText" | "showLayerToggles" | "showGrid" | "showCoordinates" | "defaultUnit" | "pngScale" | "pngBackground";
+type ControlKey = "defaultMode" | "wrapText" | "showLayerToggles" | "showGrid" | "showCoordinates" | "defaultUnit" | "pngScale" | "pngBackground" | "libraryFolder";
 
 /**
  * The settings tab. The settings are listed once, as definitions:
@@ -117,6 +120,12 @@ export class ZyxSettingTab extends PluginSettingTab {
         aliases: ["export"],
         control: { type: "dropdown", key: "pngBackground", options: { transparent: "Transparent", white: "White" } },
       },
+      {
+        name: "Library folder",
+        desc: "Folder for libraries (.zyxdl files) that many drawings share. An import looks next to the drawing first, then here. Leave empty to look only next to the drawing.",
+        aliases: ["import", "zyxdl", "shapes"],
+        control: { type: "folder", key: "libraryFolder", placeholder: DEFAULT_SETTINGS.libraryFolder },
+      },
     ];
   }
 
@@ -146,6 +155,9 @@ export class ZyxSettingTab extends PluginSettingTab {
       case "pngScale":
         s.pngScale = Number(value);
         break;
+      case "libraryFolder":
+        s.libraryFolder = typeof value === "string" ? value.trim().replace(/^\/+|\/+$/g, "") : "";
+        break;
       case "wrapText":
         s.wrapText = value === true;
         break;
@@ -162,6 +174,7 @@ export class ZyxSettingTab extends PluginSettingTab {
     await this.plugin.saveSettings();
     if (key === "wrapText") this.plugin.applyWrap();
     if (key === "showLayerToggles") this.plugin.applyLayerToggles();
+    if (key === "libraryFolder") this.plugin.refreshDrawings();
   }
 
   /** Obsidian before 1.13: draws the same definitions. Not called when `getSettingDefinitions()` is used. */
@@ -178,6 +191,13 @@ export class ZyxSettingTab extends PluginSettingTab {
         setting.addToggle((t) => t.setValue(this.getControlValue(control.key) === true).onChange(save));
       } else if (control.type === "dropdown") {
         setting.addDropdown((d) => d.addOptions(control.options).setValue(String(this.getControlValue(control.key))).onChange(save));
+      } else if (control.type === "folder" || control.type === "text") {
+        setting.addText((t) =>
+          t
+            .setPlaceholder(control.placeholder ?? "")
+            .setValue(String(this.getControlValue(control.key)))
+            .onChange(save),
+        );
       }
     }
   }

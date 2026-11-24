@@ -12,6 +12,8 @@ import { mountSvg, renderDiagnostics } from "./svg";
 import { VIEW_TYPE_ZYX, ZyxView } from "./zyx-view";
 
 const EXTENSION = "zyxd";
+/** Libraries: definitions only, opened in the same view (issue #13). */
+const LIBRARY_EXTENSION = "zyxdl";
 
 const SAMPLE = `# New ZyxDraw drawing
 canvas(width=400, height=200)
@@ -75,11 +77,11 @@ export default class ZyxDrawPlugin extends Plugin {
     this.registerEditorExtension(zyxCodeBlockHighlighting());
 
     this.registerView(VIEW_TYPE_ZYX, (leaf) => new ZyxView(leaf, this));
-    this.registerExtensions([EXTENSION], VIEW_TYPE_ZYX);
+    this.registerExtensions([EXTENSION, LIBRARY_EXTENSION], VIEW_TYPE_ZYX);
 
     // ```zyxd code blocks inside notes (read-only). Imports resolve relative to the note.
     this.registerMarkdownCodeBlockProcessor(EXTENSION, async (source, el, ctx) => {
-      const result = await compileInVault(this.app, source, ctx.sourcePath, { measurer: createCanvasMeasurer() });
+      const result = await compileInVault(this.app, source, ctx.sourcePath, { measurer: createCanvasMeasurer(), libraryFolder: this.settings.libraryFolder });
       mountSvg(el.createDiv({ cls: "zyxdraw-block" }), result.svg);
       renderDiagnostics(el.createDiv({ cls: "zyxdraw-problems" }), source, result.diagnostics);
     });
@@ -157,16 +159,20 @@ export default class ZyxDrawPlugin extends Plugin {
       }),
     );
 
-    // A library file changed: other open drawings may import it.
+    // A library changed: open drawings may import it.
     this.registerEvent(
       this.app.vault.on("modify", (f) => {
-        if (!(f instanceof TFile) || f.extension !== EXTENSION) return;
-        for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_ZYX)) {
-          const view = leaf.view;
-          if (view instanceof ZyxView && view.file !== f) view.refresh();
-        }
+        if (f instanceof TFile && f.extension === LIBRARY_EXTENSION) this.refreshDrawings(f);
       }),
     );
+  }
+
+  /** Re-compiles every open drawing (a library or the library folder changed), except `skip`. */
+  refreshDrawings(skip?: TFile): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_ZYX)) {
+      const view = leaf.view;
+      if (view instanceof ZyxView && view.file !== skip) view.refresh();
+    }
   }
 
   async loadSettings(): Promise<void> {
@@ -217,7 +223,7 @@ export default class ZyxDrawPlugin extends Plugin {
   private async export(file: TFile, kind: ExportKind): Promise<void> {
     const view = this.app.workspace.getActiveViewOfType(ZyxView);
     const source = view && view.file === file ? view.getViewData() : await this.app.vault.read(file);
-    const result = await compileInVault(this.app, source, file.path, { measurer: createCanvasMeasurer() });
+    const result = await compileInVault(this.app, source, file.path, { measurer: createCanvasMeasurer(), libraryFolder: this.settings.libraryFolder });
     await runExport(this.app, file, result, kind, this.settings);
   }
 

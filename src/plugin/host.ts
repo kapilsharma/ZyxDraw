@@ -1,7 +1,7 @@
 import { App, TFile } from "obsidian";
 import { compileWithImports, type CompileResult, type ReadFile, type TextMeasurer } from "../core";
 
-/** Reads `.zyxd` libraries from the vault. */
+/** Reads libraries (`.zyxdl`) from the vault. */
 export function vaultReader(app: App): ReadFile {
   return async (path: string) => {
     const file = app.vault.getAbstractFileByPath(path);
@@ -9,12 +9,12 @@ export function vaultReader(app: App): ReadFile {
   };
 }
 
-/** Compiles a drawing, loading its imports from the vault (relative to `path`). */
+/** Compiles a drawing, loading its imports from the vault (next to `path`, then the library folder). */
 export function compileInVault(
   app: App,
   source: string,
   path: string,
-  options: { measurer?: TextMeasurer; metadata?: boolean } = {},
+  options: { measurer?: TextMeasurer; metadata?: boolean; libraryFolder?: string } = {},
 ): Promise<CompileResult> {
   return compileWithImports(source, vaultReader(app), { ...options, path });
 }

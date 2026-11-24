@@ -3,9 +3,9 @@ import { Code, Diagnostics, ScopedDiagnostics } from "../diagnostics";
 import { parsePath, parsePoints, type PathCommand } from "../geometry";
 import type { Attr, Expr, SourceRange, Statement, SyntaxTree, Value } from "../syntax/ast";
 import { parse } from "../syntax/parser";
-import { importCandidates } from "./library";
+import { drawingPath, importCandidates, isLibraryPath } from "./library";
 
-const KEYWORDS = new Set(["style", "canvas", "shape", "import", "clip", "gradient", "layer"]);
+const KEYWORDS = new Set(["style", "canvas", "shape", "import", "export", "clip", "gradient", "layer"]);
 
 /** Attributes whose value may name a gradient. */
 const PAINT_ATTRS = ["fill", "stroke"];
@@ -80,6 +80,8 @@ export interface ClipDef {
   stmt: Statement;
   shapes: Shape[] | null;
   resolving: boolean;
+  /** The file it is written in: its shapes are resolved there, even when imported. */
+  scope: FileScope;
 }
 
 /** A `name is gradient(...)` definition, ready for SVG. */
@@ -108,6 +110,12 @@ export interface FileScope {
   styles: Map<string, Attr[]>;
   clips: Map<string, ClipDef>;
   gradients: Map<string, GradientDef>;
+  /** Imported styles: the file each one is written in (for messages). Own styles are not here. */
+  styleFrom: Map<string, FileScope>;
+  /** A `.zyxdl` library: draws nothing, may export. */
+  isLibrary: boolean;
+  /** Names listed in `export` lines, or null when there are none (everything is exported). */
+  exports: Set<string> | null;
 }
 
 export interface ResolveOptions {
@@ -115,8 +123,10 @@ export interface ResolveOptions {
   path?: string;
   /** The file's own source text (line numbers in messages). */
   source?: string;
-  /** Library sources by vault path, from `loadLibraries`. */
+  /** Library and drawing sources by vault path, from `loadLibraries`. */
   libraries?: Map<string, string>;
+  /** Vault path of the library folder from the settings (searched after the file's folder). */
+  libraryFolder?: string;
 }
 
 export interface Frame {
@@ -149,10 +159,13 @@ export function resolve(tree: SyntaxTree, diags: Diagnostics, options: ResolveOp
     sources: options.libraries ?? new Map<string, string>(),
     scopes: new Map(),
     loading: [],
+    libraryFolder: options.libraryFolder ?? "",
   };
   const scope = buildFileScope(libs.mainPath, options.source ?? "", tree, diags, libs);
   const ctx: Ctx = { diags, styles: scope.styles, counter: { next: 1 }, scope, mainScope: scope, defStack: [], usedGradients: [] };
   const top = tree.statements;
+  // A library draws nothing (its `canvas` and shapes were reported in `buildFileScope`).
+  if (scope.isLibrary) return { frame: { ...DEFAULT_FRAME }, roots: [], gradients: [] };
 
   const frame = resolveCanvas(top, diags);
   if (frame.background) frame.background = paintValue(frame.background, ctx);
@@ -310,6 +323,7 @@ interface Libraries {
   scopes: Map<string, FileScope>;
   /** Files whose scope is being built (circular import check). */
   loading: string[];
+  libraryFolder: string;
 }
 
 function collectStyles(top: Statement[], diags: Diagnostics): Map<string, Attr[]> {
@@ -327,7 +341,7 @@ function collectStyles(top: Statement[], diags: Diagnostics): Map<string, Attr[]
 }
 
 /**
- * Collects the custom shapes visible in one file: imported ones first (later imports override
+ * Collects the definitions visible in one file: imported ones first (later imports override
  * earlier ones), then the file's own definitions (which always win).
  */
 function buildFileScope(path: string, source: string, tree: SyntaxTree, report: Diagnostics, libs: Libraries): FileScope {
@@ -338,8 +352,21 @@ function buildFileScope(path: string, source: string, tree: SyntaxTree, report: 
     styles: collectStyles(tree.statements, report),
     clips: new Map(),
     gradients: collectGradients(tree.statements, report),
+    styleFrom: new Map(),
+    isLibrary: isLibraryPath(path),
+    exports: null,
   };
   libs.loading.push(path);
+
+  if (scope.isLibrary) {
+    for (const s of tree.statements) {
+      if (s.kind === "canvas") {
+        report.error(Code.LibraryDraws, "A library draws nothing: `canvas` is only for drawings", s.range);
+      } else if (s.kind === "shape") {
+        report.error(Code.LibraryDraws, "A library draws nothing: put shapes inside a custom shape (`name is shape():`)", s.range);
+      }
+    }
+  }
 
   for (const s of tree.statements) {
     if (s.kind !== "clipDef") continue;
@@ -349,34 +376,43 @@ function buildFileScope(path: string, source: string, tree: SyntaxTree, report: 
       report.error(Code.InvalidClip, `Clip \`${s.name}\` has no shapes: indent them below \`:\``, s.range);
     } else {
       if (s.attrs.length > 0 || s.args.length > 0) report.error(Code.InvalidClip, "A clip takes no attributes: `name is clip():`", s.range);
-      scope.clips.set(s.name, { name: s.name, stmt: s, shapes: null, resolving: false });
+      scope.clips.set(s.name, { name: s.name, stmt: s, shapes: null, resolving: false, scope });
     }
   }
 
+  // Own styles, gradients and clips win over imported ones (custom shapes: below, set last).
+  const own = { styles: new Set(scope.styles.keys()), gradients: new Set(scope.gradients.keys()), clips: new Set(scope.clips.keys()) };
   for (const s of tree.statements) {
     if (s.kind !== "import" || !s.importPath) continue;
-    const candidates = importCandidates(path, s.importPath);
-    const target = candidates.find((c) => c === libs.mainPath || libs.sources.has(c));
-    if (target === undefined) {
-      report.error(Code.ImportNotFound, `Cannot find \`${s.importPath}\` (looked for ${candidates.map((c) => `\`${c}\``).join(", ")})`, s.importPathRange!);
+    const lib = importedScope(s, path, report, libs);
+    if (!lib) continue;
+    const name = s.importPath;
+    const take = (from: string, as: string) => {
+      const def = lib.defs.get(from);
+      if (def) scope.defs.set(as, { ...def, sealed: true });
+      const style = lib.styles.get(from);
+      if (style && !own.styles.has(as)) {
+        scope.styles.set(as, style);
+        scope.styleFrom.set(as, lib.styleFrom.get(from) ?? lib);
+      }
+      const gradient = lib.gradients.get(from);
+      if (gradient && !own.gradients.has(as)) scope.gradients.set(as, gradient);
+      const clip = lib.clips.get(from);
+      if (clip && !own.clips.has(as)) scope.clips.set(as, clip);
+    };
+    if (s.importAll) {
+      for (const n of exportedNames(lib)) take(n, n);
       continue;
-    }
-    const at = libs.loading.indexOf(target);
-    if (at !== -1) {
-      report.error(Code.CircularImport, `Circular import: ${[...libs.loading.slice(at), target].join(" -> ")}`, s.range);
-      continue;
-    }
-    let lib = libs.scopes.get(target);
-    if (!lib) {
-      const libSource = libs.sources.get(target) ?? "";
-      const scoped = new ScopedDiagnostics(report, s.range, `In \`${target}\`: `, libSource);
-      lib = buildFileScope(target, libSource, parse(libSource, scoped), scoped, libs);
-      libs.scopes.set(target, lib);
     }
     for (const n of s.importNames ?? []) {
-      const def = lib.defs.get(n.name);
-      if (!def) report.error(Code.ImportNotFound, `\`${n.name}\` is not defined in \`${target}\``, n.range);
-      else scope.defs.set(n.name, { ...def, sealed: true });
+      if (!definedIn(lib, n.name)) {
+        report.error(Code.ImportNotFound, `\`${n.name}\` is not defined in \`${name}\``, n.range);
+      } else if (lib.exports && !lib.exports.has(n.name)) {
+        const list = [...lib.exports].map((e) => `\`${e}\``).join(", ");
+        report.error(Code.ImportNotFound, `\`${n.name}\` is not exported by \`${name}\`. It exports: ${list}`, n.range);
+      } else {
+        take(n.name, n.alias ?? n.name);
+      }
     }
   }
 
@@ -405,8 +441,64 @@ function buildFileScope(path: string, source: string, tree: SyntaxTree, report: 
     scope.defs.set(s.name, { name: s.name, stmt: s, sealed: false, scope });
   }
 
+  // `export a, b`: only in a library, only names it can see (its own or imported).
+  for (const s of tree.statements) {
+    if (s.kind !== "export") continue;
+    if (!scope.isLibrary) {
+      report.error(Code.Export, "A drawing cannot be imported, so it cannot export. Move the definitions to a `.zyxdl` library", s.range);
+      continue;
+    }
+    scope.exports ??= new Set();
+    for (const n of s.exportNames ?? []) {
+      if (definedIn(scope, n.name)) scope.exports.add(n.name);
+      else report.error(Code.Export, `\`${n.name}\` is not defined in this library`, n.range);
+    }
+  }
+
   libs.loading.pop();
   return scope;
+}
+
+/** Finds and builds the library an import points to. Reports why when it cannot. */
+function importedScope(s: Statement, path: string, report: Diagnostics, libs: Libraries): FileScope | null {
+  const name = s.importPath!;
+  const candidates = importCandidates(path, name, libs.libraryFolder);
+  if (candidates.length === 0) return null; // a bad library name, reported by the parser
+  const target = candidates.find((c) => c === libs.mainPath || libs.sources.has(c));
+  if (target === undefined) {
+    const drawing = candidates.map(drawingPath).find((c) => libs.sources.has(c));
+    if (drawing) {
+      const file = drawing.slice(drawing.lastIndexOf("/") + 1);
+      report.error(Code.ImportNotFound, `\`${drawing}\` is a drawing. Only \`.zyxdl\` libraries can be imported. Rename it to \`${file}l\``, s.importPathRange!);
+    } else {
+      const looked = candidates.map((c) => `\`${c}\``).join(" and ");
+      report.error(Code.ImportNotFound, `Zyxd library \`${name}\` not found. Looked for ${looked}. Folder and file names of libraries cannot contain dots`, s.importPathRange!);
+    }
+    return null;
+  }
+  const at = libs.loading.indexOf(target);
+  if (at !== -1) {
+    report.error(Code.CircularImport, `Circular import: ${[...libs.loading.slice(at), target].join(" -> ")}`, s.range);
+    return null;
+  }
+  let lib = libs.scopes.get(target);
+  if (!lib) {
+    const libSource = libs.sources.get(target) ?? "";
+    const scoped = new ScopedDiagnostics(report, s.range, `In \`${target}\`: `, libSource);
+    lib = buildFileScope(target, libSource, parse(libSource, scoped), scoped, libs);
+    libs.scopes.set(target, lib);
+  }
+  return lib;
+}
+
+/** True when a file defines or imports `name` (a custom shape, style, gradient or clip). */
+function definedIn(scope: FileScope, name: string): boolean {
+  return scope.defs.has(name) || scope.styles.has(name) || scope.gradients.has(name) || scope.clips.has(name);
+}
+
+/** What `import *` brings in: the `export` list, or everything the library can see. */
+function exportedNames(scope: FileScope): Set<string> {
+  return scope.exports ?? new Set([...scope.defs.keys(), ...scope.styles.keys(), ...scope.gradients.keys(), ...scope.clips.keys()]);
 }
 
 function paramNames(def: Statement): string[] {
@@ -671,16 +763,20 @@ function resolveShape(
         diags.error(Code.UnknownStyle, `Unknown style \`${styleName}\``, styleAttr.range);
         continue;
       }
+      // An imported style's text is in its library: its problems go on `style=...` here, and
+      // its values point there too (they cannot be edited in this file).
+      const from = ctx.scope.styleFrom.get(styleName);
+      const styleDiags = from ? new ScopedDiagnostics(diags, styleAttr.range, `In style \`${styleName}\` (\`${from.path}\`): `, from.source) : diags;
       for (const a of styleAttrs) {
         const canonical = spec.aliases[a.name] ?? a.name;
         const attrSpec = spec.attrs[canonical];
         if (!attrSpec) continue; // the style may target other shape types
         if (POSITION_ATTRS.has(canonical) || canonical === "style") {
-          diags.warning(Code.UnknownAttribute, `Styles cannot set \`${a.name}\` (position); it is ignored`, a.range);
+          styleDiags.warning(Code.UnknownAttribute, `Styles cannot set \`${a.name}\` (position); it is ignored`, a.range);
           continue;
         }
-        const v = convert(a.name, attrSpec, a, diags);
-        if (v) attrs.set(canonical, { value: v, range: a.range, written: a.name });
+        const v = convert(a.name, attrSpec, a, styleDiags);
+        if (v) attrs.set(canonical, { value: v, range: from ? styleAttr.range : a.range, written: a.name });
       }
     }
   }
@@ -765,12 +861,22 @@ export function evaluate(e: Expr): Evaluated {
 }
 
 /** Resolves the shapes of a clip block once. Clip shapes cannot be clipped themselves. */
-function resolveClip(def: ClipDef, ctx: Ctx, usedAt: SourceRange): Shape[] | null {
+function resolveClip(def: ClipDef, usingCtx: Ctx, usedAt: SourceRange): Shape[] | null {
   if (def.shapes) return def.shapes;
   if (def.resolving) {
-    ctx.diags.error(Code.InvalidClip, `Shapes inside clip \`${def.name}\` cannot use a clip`, usedAt);
+    usingCtx.diags.error(Code.InvalidClip, `Shapes inside clip \`${def.name}\` cannot use a clip`, usedAt);
     return null;
   }
+  // An imported clip is resolved in its own file, with problems shown where it is used.
+  const ctx: Ctx =
+    def.scope === usingCtx.scope
+      ? usingCtx
+      : {
+          ...usingCtx,
+          diags: new ScopedDiagnostics(usingCtx.diags, usedAt, `In clip \`${def.name}\` (\`${def.scope.path}\`): `, def.scope.source),
+          styles: def.scope.styles,
+          scope: def.scope,
+        };
   def.resolving = true;
   const names = new Map<string, Statement>();
   const shapes: Shape[] = [];

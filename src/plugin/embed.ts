@@ -5,14 +5,15 @@
  * after rendering and fills it. Obsidian may fill the element itself a moment later, so a
  * MutationObserver re-renders a few times if our drawing gets replaced.
  */
-import { MarkdownRenderChild, TFile, type Plugin } from "obsidian";
+import { MarkdownRenderChild, TFile } from "obsidian";
 import { compileInVault } from "./host";
+import type ZyxDrawPlugin from "./main";
 import { createCanvasMeasurer } from "./measure";
 import { mountSvg, renderDiagnostics } from "./svg";
 
 const MAX_RERENDERS = 3;
 
-export function registerEmbeds(plugin: Plugin): void {
+export function registerEmbeds(plugin: ZyxDrawPlugin): void {
   plugin.registerMarkdownPostProcessor((el, ctx) => {
     for (const embed of Array.from(el.querySelectorAll<HTMLElement>(".internal-embed"))) {
       const src = embed.getAttribute("src");
@@ -32,7 +33,7 @@ class EmbedChild extends MarkdownRenderChild {
 
   constructor(
     containerEl: HTMLElement,
-    private readonly plugin: Plugin,
+    private readonly plugin: ZyxDrawPlugin,
     private readonly file: TFile,
   ) {
     super(containerEl);
@@ -47,7 +48,8 @@ class EmbedChild extends MarkdownRenderChild {
     this.observer.observe(this.containerEl, { childList: true });
     this.registerEvent(
       this.plugin.app.vault.on("modify", (f) => {
-        if (f === this.file) void this.render();
+        // The drawing itself, or a library it may import.
+        if (f === this.file || (f instanceof TFile && f.extension === "zyxdl")) void this.render();
       }),
     );
   }
@@ -59,7 +61,10 @@ class EmbedChild extends MarkdownRenderChild {
   private async render(): Promise<void> {
     this.renders++;
     const source = await this.plugin.app.vault.cachedRead(this.file);
-    const result = await compileInVault(this.plugin.app, source, this.file.path, { measurer: createCanvasMeasurer() });
+    const result = await compileInVault(this.plugin.app, source, this.file.path, {
+      measurer: createCanvasMeasurer(),
+      libraryFolder: this.plugin.settings.libraryFolder,
+    });
     this.rendering = true;
     this.containerEl.empty();
     this.containerEl.addClass("zyxdraw-embed");
