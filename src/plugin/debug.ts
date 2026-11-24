@@ -60,7 +60,7 @@ export async function writeDebugReport(app: App, manifest: PluginManifest, log: 
   line();
 
   const editors: [string, Element[]][] = [
-    ["ZyxDraw editors (.zyxd)", Array.from(doc.querySelectorAll(".zyxdraw-source .cm-content"))],
+    ["ZyxDraw editors (.zyxd)", Array.from(doc.querySelectorAll(".zyxdraw-left-panel .cm-content"))],
     ["Markdown editors", Array.from(doc.querySelectorAll(".markdown-source-view .cm-content"))],
   ];
   for (const [title, list] of editors) {

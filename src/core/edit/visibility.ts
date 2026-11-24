@@ -1,6 +1,6 @@
 /**
  * Hiding shapes with `display=none` (issue #2). A hidden shape is still laid out, so anchors and
- * lines to it keep working; it is only not painted, and the drawing view does not select it.
+ * lines to it keep working; it is only not painted, and the drawing area does not select it.
  */
 import type { Scene } from "../layout/layout";
 import type { Shape } from "../resolve/resolve";
@@ -77,4 +77,49 @@ function styleHides(target: PropertyTarget, shape: Shape): boolean {
     if (d) hides = d.values.length === 1 && d.values[0].kind === "ident" && d.values[0].value === "none";
   }
   return hides;
+}
+
+/** A row of the layers view (issue #11). */
+export interface LayerNode {
+  path: string;
+  /** The name, or the type for an unnamed shape (`unnamed` is then true). */
+  label: string;
+  unnamed: boolean;
+  /** `layer`, `group`, the shape type (`rect`, ...), or `instance` for a custom shape. */
+  kind: string;
+  /** The custom shape's name, for an instance. */
+  instanceOf?: string;
+  hidden: boolean;
+  hiddenByGroup: boolean;
+  /** Front-most first. Empty for shapes, and for custom shape instances (their parts are not in the file). */
+  children: LayerNode[];
+}
+
+/**
+ * The drawing as a tree for the layers view: every top-level shape, group and layer, front-most
+ * first (the reverse of text order, as in other drawing programs). Groups and layers hold their
+ * shapes the same way.
+ */
+export function layerTree(scene: Scene): LayerNode[] {
+  const node = (s: Shape): LayerNode => {
+    const kind = s.layer ? "layer" : s.instanceOf ? "instance" : s.type;
+    return {
+      path: s.path,
+      label: s.name ?? (s.instanceOf ?? kind),
+      unnamed: !s.name,
+      kind,
+      instanceOf: s.instanceOf,
+      hidden: isHidden(s),
+      hiddenByGroup: s.parent !== null && isHiddenInDrawing(s.parent),
+      children: s.instanceOf ? [] : list(s.children),
+    };
+  };
+  const list = (shapes: Shape[]) => shapes.filter((s) => !s.generated).map(node).reverse();
+  return list(scene.roots);
+}
+
+/** The layer a shape is in (the shape itself for a layer), or null. */
+export function layerOf(shape: Shape): Shape | null {
+  for (let p: Shape | null = shape; p; p = p.parent) if (p.layer) return p;
+  return null;
 }

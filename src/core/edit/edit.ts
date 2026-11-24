@@ -100,7 +100,7 @@ export function geometry(scene: Scene, shape: Shape): Geometry | null {
   for (const axis of [0, 1] as Axis[]) {
     // Top level: the canvas size (an infinite canvas has none, so new values are in pixels).
     if (!p) parentSize[axis] = scene.frame.infinite ? null : axis === 0 ? scene.frame.width : scene.frame.height;
-    else if (p.attrs.has(AXIS[axis].size) || (p.attrs.has(AXIS[axis].start) && p.attrs.has(AXIS[axis].end))) {
+    else if (p.attrs.has(AXIS[axis].size) || (p.attrs.has(AXIS[axis].start) && p.attrs.has(AXIS[axis].end)) || (p.layer && !scene.frame.infinite)) {
       const pb = scene.placed.get(p.id)?.box;
       parentSize[axis] = pb ? (axis === 0 ? pb.w : pb.h) : null;
     }
@@ -435,7 +435,7 @@ function lineStart(src: string, pos: number): number {
 }
 
 /** Whole lines covering `range`, including the final newline (or the previous one at the end). */
-function fullLines(src: string, range: SourceRange): { from: number; to: number } {
+export function fullLines(src: string, range: SourceRange): { from: number; to: number } {
   let from = lineStart(src, range.start);
   if (src.slice(from, range.start).trim() !== "") from = range.start;
   const nl = src.indexOf("\n", range.end);

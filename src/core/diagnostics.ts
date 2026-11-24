@@ -56,6 +56,8 @@ export const Code = {
   UnknownClip: "ZYX121",
   InvalidClip: "ZYX122",
   InvalidGradient: "ZYX123",
+  /** `layer` inside a group, a custom shape or another layer: layers are top level only. */
+  LayerNotTopLevel: "ZYX124",
 
   UnknownShape: "ZYX201",
   PositionConflict: "ZYX202",

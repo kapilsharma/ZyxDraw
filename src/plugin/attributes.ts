@@ -1,9 +1,10 @@
 /**
- * Attributes panel under the drawing: a form with every attribute of the selected shape, or of the
- * canvas when nothing is selected. Like the drawing, it never changes anything itself: each
+ * Attributes, shown in the bottom panel (under the drawing area): a form with every attribute of
+ * the selected shape, or of the canvas when nothing is selected. Like the drawing, it never changes anything itself: each
  * committed field becomes a text edit (core/edit/properties), then everything is recompiled.
  */
 import { Notice, setIcon } from "obsidian";
+import type { PanelView } from "./panels";
 import {
   SECTION_ORDER,
   allShapes,
@@ -16,7 +17,7 @@ import {
   type PropertySheet,
 } from "../core";
 
-export interface PropertyHost {
+export interface AttributesHost {
   current(): { source: string; result: CompileResult } | null;
   apply(edit: EditResult, source: string): void;
   revealInSource(path: string): void;
@@ -31,26 +32,24 @@ export function hasSyntaxErrors(result: CompileResult): boolean {
 
 const COLOR_KINDS = new Set(["paint"]);
 
-export class PropertyPanel {
+export class AttributesForm implements PanelView {
   readonly el: HTMLElement;
   private path: string | null = null;
   /** Sections the user closed, kept while switching shapes. */
   private readonly closed = new Set<PropertySection>();
+  /** Whether the bottom panel is showing the form; while hidden, it is not rebuilt. */
+  private shown = false;
 
   constructor(
     parent: HTMLElement,
-    private readonly host: PropertyHost,
+    private readonly host: AttributesHost,
   ) {
-    this.el = parent.createDiv({ cls: "zyxdraw-properties" });
+    this.el = parent.createDiv({ cls: "zyxdraw-attributes" });
   }
 
-  setVisible(visible: boolean): void {
-    this.el.toggleClass("is-hidden", !visible);
-    if (visible) this.render();
-  }
-
-  get visible(): boolean {
-    return !this.el.hasClass("is-hidden");
+  setShown(shown: boolean): void {
+    this.shown = shown;
+    if (shown) this.render();
   }
 
   /** Shows a shape (or the canvas for null). */
@@ -65,7 +64,7 @@ export class PropertyPanel {
   }
 
   private render(): void {
-    if (!this.visible) return;
+    if (!this.shown) return;
     const cur = this.host.current();
     if (!cur) return; // a newer compile is on its way; it will call refresh()
     const target = { source: cur.source, scene: cur.result.scene, tree: cur.result.tree, diagnostics: cur.result.diagnostics };

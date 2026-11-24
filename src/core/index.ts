@@ -1,6 +1,6 @@
 // Public API of the core. Pure TypeScript: no Obsidian, no DOM, no file access.
 import { fitInfiniteFrame } from "./bounds";
-import { Diagnostics, type Diagnostic } from "./diagnostics";
+import { Code, Diagnostics, type Diagnostic } from "./diagnostics";
 import { approxMeasurer, layout, type Scene, type TextMeasurer } from "./layout/layout";
 import { render } from "./render/render";
 import { loadLibraries, type ReadFile } from "./resolve/library";
@@ -96,3 +96,21 @@ export { resolve } from "./resolve/resolve";
 export { layout } from "./layout/layout";
 export { render, esc as escapeXml } from "./render/render";
 export type { SourceRange, SyntaxTree, Statement, Attr, Value } from "./syntax/ast";
+
+/**
+ * References an edit would break: "unknown shape" problems that the text after the edit has and
+ * the text before does not (issue #11: moving a shape to another layer or group changes its path,
+ * and deleting it removes it). Messages, one per broken reference. Names are found anywhere in the
+ * file, whatever the order, so reordering alone never breaks a reference.
+ */
+export function brokenReferences(before: string, after: string, options: CompileOptions = {}): string[] {
+  const unknown = (source: string) => compile(source, options).diagnostics.filter((d) => d.code === Code.UnknownShape);
+  const old = unknown(before).map((d) => d.message);
+  const out: string[] = [];
+  for (const d of unknown(after)) {
+    const i = old.indexOf(d.message);
+    if (i !== -1) old.splice(i, 1);
+    else out.push(`Line ${after.slice(0, d.range.start).split("\n").length}: ${d.message}`);
+  }
+  return out;
+}

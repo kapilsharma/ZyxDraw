@@ -6,7 +6,7 @@ ZyxDraw is the missing Drawing-as-Text (Yes, `text`; not `code`) tool. It is als
 
 The text is written in **Zyxd**, a small language made for ZyxDraw (files end in `.zyxd`). You do not need to know any programming to read or write it.
 
-It has a drawing board as well as text and attributes views. The aim is to make SVG as simple as text, and to make complex SVG graphics and vector drawings that can scale for complex drawings.
+It shows the text and the drawing side by side, with the attributes of the selected shape under the drawing. The aim is to make SVG as simple as text, and to make complex SVG graphics and vector drawings that can scale for complex drawings.
 
 >### Origin of name
 >
@@ -112,9 +112,9 @@ primary is style(fill=yellow, stroke=red, stroke-width=2)
 
 The syntax is `name is type`. Here, `primary` is just a name that we want to refer to later, while applying the style.
 
-`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas` and `import`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either.
+`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas`, `import` and `layer`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either.
 
-After style, we have `()`. Within it, we have attributes, which are in the format `attribute=value`. There is a huge list of attributes, which we will see later in detail. They are also visible in the attributes view, below the drawing area.
+After style, we have `()`. Within it, we have attributes, which are in the format `attribute=value`. There is a huge list of attributes, which we will see later in detail. They are also listed in the **Attributes**, in the bottom panel under the drawing area.
 
 #### Secondary
 
@@ -233,7 +233,7 @@ There are many great drawing editors, and many diagram-as-code tools too, so the
 - In SVG, I need to copy-paste code every time I want to reuse something.
   - `Requirement 3`: Easy to design library of custom shapes and reuse them anywhere later.
 - Editing SVG: When we have a lot of points, especially in shapes like polygons, tracking points in an SVG editor is not easy.
-  - `Requirement 4`: Make point editing easy in the text view. Selecting a shape or point in the editor should move the cursor in the text, to quickly adjust it.
+  - `Requirement 4`: Make point editing easy in the text. Selecting a shape or point in the editor should move the cursor in the text, to quickly adjust it.
 
 Above were the major requirements for which ZyxDraw exists. Since I have achieved them already (before open-sourcing it as an Obsidian plugin), I will keep adding more features to make it even easier.
 
@@ -248,11 +248,15 @@ The plugin, in its first version, comes with a lot of useful commands, and the l
 ## Getting started
 
 - **New drawing:** right-click a folder in the file explorer and choose **New ZyxDraw drawing**, or use the ribbon icon or the command **ZyxDraw: New drawing**. It asks for the name, then creates and opens the `.zyxd` file.
-- **Three views:** There are three views, available at the click of a button or with the `ZyxDraw: Show ...` commands.
-  - Text and drawing side by side
-  - Text only
-  - Drawing only
-    - We also have an attributes view below the drawing view.
+- **Panels:** a drawing opens in panels. Drag the line between two panels to resize them; double-click it to reset.
+  - **Left panel:** the text.
+  - **Drawing area:** the drawing and its toolbar.
+  - **Bottom panel**, under the drawing area: the **Attributes** of the selected shape. The **Attributes** button in the view header shows or hides it.
+  - **Right panel**: the **Layers**. The **Layers** button in the view header shows or hides it.
+- **Three views:** buttons in the view header, or the `ZyxDraw: Show ...` commands.
+  - Text and drawing side by side (left panel and drawing area)
+  - Text only (left panel)
+  - Drawing only (drawing area)
 - **Go to definition:** `Ctrl` + click (`Cmd` on Mac) on a name in the text: a custom shape (opens its library in a new tab), an import path, a shape in `right-of=`, `from=`, ..., a style, a clip or a gradient. Hold `Ctrl` to see what is clickable. Also the command **ZyxDraw: Go to definition** (for the name at the cursor).
 - **Hide shapes while you work:** click the eye next to a shape's line number in the text to hide it (it writes `display=none`); click again to show it. The lines of a hidden shape are faded. Hidden shapes keep their place, so shapes and lines attached to them do not move. See [Hiding shapes](#hiding-shapes).
 - **Comment lines:** `Ctrl+/` (`Cmd+/` on Mac) comments or uncomments the selected lines in the text.
@@ -410,7 +414,7 @@ d is rect(right-of=a 40, below=c 10)             # relative to other shapes, wit
 - Relative: `right-of`, `left-of`, `above`, `below`. One per axis.
 - There will be an error on any conflict. Example: two ways to place the same axis, opposite anchors, or a loop of anchors (`a` right of `b`, `b` right of `a`).
 - `canvas(width=..., height=..., background=...)` sets the frame used for percent. Without it the frame is 1000 x 600.
-- `canvas(infinite)` has no frame: the SVG is sized to what is drawn (plus 20 px), positions may be negative, and top-level shapes use pixels (`%` and `right` / `bottom` need a group with a size). The drawing view gives room to draw anywhere.
+- `canvas(infinite)` has no frame: the SVG is sized to what is drawn (plus 20 px), positions may be negative, and top-level shapes use pixels (`%` and `right` / `bottom` need a group with a size). The drawing area gives room to draw anywhere.
 
 ### Rotate and scale
 
@@ -433,6 +437,21 @@ line(from=server.box, to=db)
 ```
 
 Attributes go in `( )`, children are indented below `:`. Names only need to be unique among siblings; refer to a child as `server.box`. Children are placed from the group's top-left. A group whose children use `%` needs a `width` and `height`.
+
+### Layers
+
+```python
+background is layer():
+  sky is rect(width=100%, height=100%, fill=lightblue)
+shapes is layer():
+  sun is circle(x=80%, y=10%, r=20, fill=gold)
+```
+
+A layer is a group for one part of the drawing. It is written at the top level only (not inside a group, a custom shape or another layer), and without a `width` / `height` it covers the canvas, so `%` works inside it. Later layers are drawn in front. In SVG it is a plain `<g>`.
+
+The **Layers** view in the right panel lists every top-level shape, group and layer, front-most first; layers and groups open to show their shapes. Click a row to select the shape; its layer becomes the **active layer**, and new shapes you draw or paste go into it. The eye on a row hides or shows it (`display=none`), **+** adds a new layer. Drag a row to put it in front of or behind another row, or into a layer or group; the shape stays in place on the canvas. Right-click a row to delete it. A click in the drawing selects what is in a layer, never the whole layer.
+
+Shapes can refer to shapes in any layer, in front or behind (`right-of=back.sky`): the whole drawing is read before anything is placed. Moving a shape to another layer changes its path (`back.sky` becomes `front.sky`), so before such a move or a delete breaks a reference, ZyxDraw lists what would break and lets you go ahead or cancel.
 
 ### Styles
 
@@ -521,8 +540,10 @@ Nothing is read in the background, and nothing leaves your device.
 - Wrap long lines in the text editor (also the command **ZyxDraw: Toggle text wrapping**).
 - Show layer toggles in the text editor: the eye icons that hide and show shapes.
 - Show grid, and show mouse coordinates (also toolbar buttons and the commands **Toggle grid** / **Toggle mouse coordinates**).
-- Unit for new positions and sizes written by the drawing view (percent or pixels).
+- Unit for new positions and sizes written by edits in the drawing area (percent or pixels).
 - PNG scale and background.
+
+In Obsidian 1.13 or later, these settings also show up in the settings search.
 
 ## Development
 

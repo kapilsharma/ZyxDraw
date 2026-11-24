@@ -5,6 +5,13 @@ import { defaultKeymap, history, historyKeymap, indentWithTab, redo, toggleComme
 import { linter, lintGutter, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
 import {
   Diagnostics,
+  applyEdits,
+  brokenReferences,
+  deleteShape,
+  moveShapeTo,
+  findShape,
+  layerOf,
+  newLayer,
   editableShape,
   pointSourceRange,
   importCandidates,
@@ -15,6 +22,7 @@ import {
   type CompileResult,
   type DefinitionLink,
   type EditResult,
+  type Scene,
   type SourceRange,
   type TextMeasurer,
 } from "../core";
@@ -22,7 +30,9 @@ import { definitionAtCursor, definitionLinks } from "./navigate";
 import { DrawingEditor } from "./drawing";
 import { layerToggles, layerTracking, setLayers } from "./layers";
 import { LOGO_ICON } from "./logo";
-import { PropertyPanel } from "./properties";
+import { AttributesForm } from "./attributes";
+import { LayersView } from "./layer-panel";
+import { ConfirmModal } from "./confirm";
 import { DEFAULT_SETTINGS } from "./settings";
 import { createSplitter } from "./splitter";
 import { compileInVault } from "./host";
@@ -63,16 +73,26 @@ export class ZyxView extends TextFileView {
   private editor: EditorView | null = null;
   private drawing: DrawingEditor | null = null;
   private problemsEl: HTMLElement | null = null;
-  private properties: PropertyPanel | null = null;
-  private propertiesButton: HTMLElement | null = null;
-  private propertiesSplitter: HTMLElement | null = null;
+  private attributes: AttributesForm | null = null;
+  /** Under the drawing area. Today it shows the Attributes. */
+  private bottomPanel: HTMLElement | null = null;
+  private attributesButton: HTMLElement | null = null;
+  private bottomSplitter: HTMLElement | null = null;
+  /** Right of the drawing area. Today it shows the Layers (issue #11). */
+  private rightPanel: HTMLElement | null = null;
+  private rightSplitter: HTMLElement | null = null;
+  private layersView: LayersView | null = null;
+  private layersButton: HTMLElement | null = null;
+  private layersVisible: boolean;
+  /** New shapes go into this layer. Follows the selection; kept for this open drawing only. */
+  private activeLayer: string | null = null;
   /** Line wrapping, switchable without rebuilding the editor state (keeps undo history). */
   private readonly wrap = new Compartment();
   /** Eye icons next to the line numbers (setting "Show layer toggles in the text editor"). */
   private readonly eyes = new Compartment();
   /** A definition to show once the file's text is loaded (opened by go to definition). */
   private pendingReveal: { name: string | undefined; hops: number } | null = null;
-  private propertiesVisible: boolean;
+  private bottomPanelVisible: boolean;
   private readonly modeButtons = new Map<ViewMode, HTMLElement>();
   private mode: ViewMode;
   private text = "";
@@ -91,7 +111,8 @@ export class ZyxView extends TextFileView {
   ) {
     super(leaf);
     this.mode = plugin.settings.defaultMode;
-    this.propertiesVisible = plugin.settings.showProperties;
+    this.bottomPanelVisible = plugin.settings.showProperties;
+    this.layersVisible = plugin.settings.showLayers;
   }
 
   getViewType(): string {
@@ -110,9 +131,11 @@ export class ZyxView extends TextFileView {
     this.measurer = createCanvasMeasurer();
     this.contentEl.empty();
     this.contentEl.addClass("zyxdraw-view");
-    const sourceEl = this.contentEl.createDiv({ cls: "zyxdraw-source" });
-    const previewEl = this.contentEl.createDiv({ cls: "zyxdraw-preview" });
-    this.drawing = new DrawingEditor(previewEl, {
+    // Panels (issue #8): left panel (text), then a column with the drawing area and the bottom
+    // panel (Attributes) under it, then the right panel (Layers, issue #11).
+    const leftPanel = this.contentEl.createDiv({ cls: "zyxdraw-left-panel" });
+    const center = this.contentEl.createDiv({ cls: "zyxdraw-center" });
+    this.drawing = new DrawingEditor(center, {
       current: () => this.current(),
       apply: (edit, source) => this.applyEdit(edit, source),
       undo: () => this.editor && undo(this.editor),
@@ -120,27 +143,46 @@ export class ZyxView extends TextFileView {
       revealInSource: (path) => this.revealInSource(path),
       defaultUnit: () => this.plugin.settings.defaultUnit,
       selectionChanged: (path) => {
-        this.properties?.show(path);
+        this.attributes?.show(path);
+        this.followLayer(path);
         if (path) this.followSelection(path);
       },
       guideOn: (guide) => this.plugin.guideOn(guide),
       toggleGuide: (guide) => this.plugin.setGuide(guide, !this.plugin.guideOn(guide)),
       showCoordinates: (text) => this.plugin.showCoordinates(text),
       pointSelected: (path, index) => this.followPoint(path, index),
+      activeLayer: () => this.activeLayer,
     });
-    this.properties = new PropertyPanel(previewEl, {
+    this.bottomPanel = center.createDiv({ cls: "zyxdraw-bottom-panel" });
+    this.attributes = new AttributesForm(this.bottomPanel, {
       current: () => this.current(),
       apply: (edit, source) => this.applyEdit(edit, source),
       revealInSource: (path) => this.revealInSource(path),
       select: (path) => this.drawing?.select(path),
     });
-    this.problemsEl = previewEl.createDiv({ cls: "zyxdraw-problems" });
+    this.problemsEl = center.createDiv({ cls: "zyxdraw-problems" });
+    this.rightPanel = this.contentEl.createDiv({ cls: "zyxdraw-right-panel" });
+    this.layersView = new LayersView(this.rightPanel, {
+      current: () => this.current(),
+      activeLayer: () => this.activeLayer,
+      select: (path) => {
+        this.followLayer(path);
+        this.drawing?.select(path);
+        this.layersView?.showSelection(path);
+      },
+      toggleHidden: (path) => this.toggleLayer(path),
+      revealInSource: (path) => this.revealInSource(path),
+      newLayer: () => this.editNow((t) => newLayer(t), (edit) => (this.activeLayer = edit.select ?? null)),
+      delete: (path) => this.editChecked((t) => deleteShape(t, path), "Delete", "Delete anyway"),
+      move: (path, place) => this.editChecked((t) => moveShapeTo(t, path, place), "Move", "Move anyway"),
+    });
     this.addDrawingHotkeys();
-    this.addSplitters(sourceEl, previewEl);
-    this.editor = new EditorView({ parent: sourceEl, state: this.createState(this.text) });
+    this.addSplitters(leftPanel, center);
+    this.editor = new EditorView({ parent: leftPanel, state: this.createState(this.text) });
     this.addModeButtons();
     this.setMode(this.mode);
-    this.setPropertiesVisible(this.propertiesVisible);
+    this.setBottomPanelVisible(this.bottomPanelVisible);
+    this.setLayersVisible(this.layersVisible);
     this.setWrap(this.plugin.settings.wrapText);
     void this.renderPreview();
   }
@@ -150,7 +192,10 @@ export class ZyxView extends TextFileView {
     this.editor = null;
     this.plugin.showCoordinates(null);
     this.drawing = null;
-    this.properties = null;
+    this.attributes = null;
+    this.bottomPanel = null;
+    this.layersView = null;
+    this.rightPanel = null;
     this.problemsEl = null;
   }
 
@@ -214,16 +259,16 @@ export class ZyxView extends TextFileView {
 
   // ---- resizable panes --------------------------------------------------------------------
 
-  /** Drag handles: text | drawing (side by side), and drawing / properties (stacked). */
-  private addSplitters(sourceEl: HTMLElement, previewEl: HTMLElement): void {
+  /** Drag handles: left panel | drawing area (side by side), and drawing area / bottom panel (stacked). */
+  private addSplitters(leftPanel: HTMLElement, center: HTMLElement): void {
     const s = this.plugin.settings;
     const clamp = (f: number, min: number, max: number) => Math.min(max, Math.max(min, f));
     const save = () => void this.plugin.saveSettings();
 
     const applySource = () => {
-      sourceEl.setCssProps({ "--zyxdraw-source-width": `${s.sourceWidth * 100}%` });
+      leftPanel.setCssProps({ "--zyxdraw-left-panel-width": `${s.sourceWidth * 100}%` });
     };
-    createSplitter(this.contentEl, previewEl, {
+    createSplitter(this.contentEl, center, {
       axis: "x",
       label: "Drag to resize text and drawing",
       container: () => this.contentEl,
@@ -239,14 +284,14 @@ export class ZyxView extends TextFileView {
     });
     applySource();
 
-    const props = this.properties!.el;
+    const bottom = this.bottomPanel!;
     const applyProps = () => {
-      props.setCssProps({ "--zyxdraw-properties-height": `${s.propertiesHeight * 100}%` });
+      bottom.setCssProps({ "--zyxdraw-bottom-panel-height": `${s.propertiesHeight * 100}%` });
     };
-    this.propertiesSplitter = createSplitter(previewEl, props, {
+    this.bottomSplitter = createSplitter(center, bottom, {
       axis: "y",
       label: "Drag to resize drawing and attributes",
-      container: () => previewEl,
+      container: () => center,
       onMove: (f) => {
         s.propertiesHeight = clamp(f, 0.1, 0.85);
         applyProps();
@@ -258,21 +303,102 @@ export class ZyxView extends TextFileView {
       },
     });
     applyProps();
+
+    const right = this.rightPanel!;
+    const applyRight = () => {
+      right.setCssProps({ "--zyxdraw-right-panel-width": `${s.rightPanelWidth * 100}%` });
+    };
+    this.rightSplitter = createSplitter(this.contentEl, right, {
+      axis: "x",
+      label: "Drag to resize the layers",
+      container: () => this.contentEl,
+      onMove: (f) => {
+        s.rightPanelWidth = clamp(1 - f, 0.1, 0.5);
+        applyRight();
+      },
+      onEnd: save,
+      onReset: () => {
+        s.rightPanelWidth = DEFAULT_SETTINGS.rightPanelWidth;
+        applyRight();
+      },
+    });
+    this.rightSplitter.addClass("is-right");
+    applyRight();
   }
 
-  // ---- attributes panel -------------------------------------------------------------------
+  // ---- bottom panel (Attributes) ----------------------------------------------------------
 
-  setPropertiesVisible(visible: boolean): void {
-    this.propertiesVisible = visible;
-    this.properties?.setVisible(visible);
-    this.propertiesSplitter?.toggleClass("is-hidden", !visible);
-    this.propertiesButton?.toggleClass("is-active", visible);
-    this.propertiesButton?.setAttribute("aria-pressed", String(visible));
+  setBottomPanelVisible(visible: boolean): void {
+    this.bottomPanelVisible = visible;
+    this.bottomPanel?.toggleClass("is-hidden", !visible);
+    this.attributes?.setShown(visible);
+    this.bottomSplitter?.toggleClass("is-hidden", !visible);
+    this.attributesButton?.toggleClass("is-active", visible);
+    this.attributesButton?.setAttribute("aria-pressed", String(visible));
     if (this.plugin.settings.showProperties !== visible) {
       this.plugin.settings.showProperties = visible;
       void this.plugin.saveSettings();
     }
     this.app.workspace.requestSaveLayout();
+  }
+
+  // ---- right panel (Layers) ---------------------------------------------------------------
+
+  setLayersVisible(visible: boolean): void {
+    this.layersVisible = visible;
+    this.rightPanel?.toggleClass("is-hidden", !visible);
+    this.rightSplitter?.toggleClass("is-hidden", !visible);
+    this.layersView?.setShown(visible);
+    this.layersButton?.toggleClass("is-active", visible);
+    this.layersButton?.setAttribute("aria-pressed", String(visible));
+    if (this.plugin.settings.showLayers !== visible) {
+      this.plugin.settings.showLayers = visible;
+      void this.plugin.saveSettings();
+    }
+    this.app.workspace.requestSaveLayout();
+  }
+
+  /** The active layer follows the selection: the layer of the selected shape (or none outside layers). */
+  private followLayer(path: string | null): void {
+    if (path) {
+      const scene = this.current()?.result.scene;
+      const shape = scene ? findShape(scene, path) : undefined;
+      if (shape) this.activeLayer = layerOf(shape)?.path ?? null;
+    }
+    this.layersView?.showSelection(path);
+  }
+
+  /** Runs an edit against the current text (from the layers view) and applies it. */
+  private editNow(op: (t: { source: string; scene: Scene }) => EditResult, after?: (edit: EditResult) => void): void {
+    const cur = this.current();
+    if (!cur) return;
+    const edit = op({ source: cur.source, scene: cur.result.scene });
+    for (const n of edit.notices) new Notice(`ZyxDraw: ${n}`);
+    if (edit.edits.length === 0) return;
+    after?.(edit);
+    this.applyEdit(edit, cur.source);
+  }
+
+  /**
+   * Runs a move or delete from the layers view. When it would break references (another shape
+   * refers to the old path), asks first: the user can go ahead anyway or cancel.
+   */
+  private editChecked(op: (t: { source: string; scene: Scene }) => EditResult, what: string, anyway: string): void {
+    const cur = this.current();
+    if (!cur) return;
+    const edit = op({ source: cur.source, scene: cur.result.scene });
+    const broken = edit.edits.length > 0 ? brokenReferences(cur.source, applyEdits(cur.source, edit.edits)) : [];
+    const go = () => {
+      this.applyEdit(edit, cur.source);
+      if (edit.select) this.drawing?.select(edit.select);
+    };
+    if (broken.length === 0) {
+      for (const n of edit.notices) new Notice(`ZyxDraw: ${n}`);
+      if (edit.edits.length > 0) go();
+      return;
+    }
+    const message = `${what} breaks ${broken.length === 1 ? "a reference" : `${broken.length} references`}: other shapes refer to it by its current path. They will show an error until you fix them.`;
+    new ConfirmModal(this.app, `${what}?`, message, broken, anyway, go).open();
   }
 
   // ---- modes ------------------------------------------------------------------------------
@@ -293,16 +419,22 @@ export class ZyxView extends TextFileView {
     parent.insertBefore(group, first);
     for (const b of buttons) group.appendChild(b);
 
-    // Attributes panel toggle, just left of the group.
+    // Attributes button (shows or hides the bottom panel), just left of the group.
     const props = this.addAction("sliders-horizontal", "Attributes", () => {
-      const show = !this.propertiesVisible;
-      // The panel sits under the drawing: in "text only" mode, bring the drawing alongside.
+      const show = !this.bottomPanelVisible;
+      // The bottom panel sits under the drawing area: in "text only" mode, bring the drawing alongside.
       if (show && this.mode === "source") this.setMode("split");
-      this.setPropertiesVisible(show);
+      this.setBottomPanelVisible(show);
     });
-    props.addClass("zyxdraw-properties-button");
+    props.addClass("zyxdraw-attributes-button");
     group.parentElement?.insertBefore(props, group);
-    this.propertiesButton = props;
+    this.attributesButton = props;
+
+    // Layers button (shows or hides the right panel), left of the Attributes button.
+    const layersButton = this.addAction("layers", "Layers", () => this.setLayersVisible(!this.layersVisible));
+    layersButton.addClass("zyxdraw-layers-button");
+    group.parentElement?.insertBefore(layersButton, props);
+    this.layersButton = layersButton;
   }
 
   setMode(mode: ViewMode): void {
@@ -317,14 +449,15 @@ export class ZyxView extends TextFileView {
   }
 
   override getState(): Record<string, unknown> {
-    return { ...super.getState(), mode: this.mode, properties: this.propertiesVisible };
+    return { ...super.getState(), mode: this.mode, properties: this.bottomPanelVisible, layers: this.layersVisible }; // "properties": key kept so saved layouts still load
   }
 
   override async setState(state: unknown, result: ViewStateResult): Promise<void> {
-    const s = state as { mode?: unknown; properties?: unknown } | null;
+    const s = state as { mode?: unknown; properties?: unknown; layers?: unknown } | null;
     const mode = s?.mode;
     if (typeof mode === "string" && (MODES as string[]).includes(mode)) this.setMode(mode as ViewMode);
-    if (typeof s?.properties === "boolean" && s.properties !== this.propertiesVisible) this.setPropertiesVisible(s.properties);
+    if (typeof s?.properties === "boolean" && s.properties !== this.bottomPanelVisible) this.setBottomPanelVisible(s.properties);
+    if (typeof s?.layers === "boolean" && s.layers !== this.layersVisible) this.setLayersVisible(s.layers);
     await super.setState(state, result);
   }
 
@@ -406,7 +539,10 @@ export class ZyxView extends TextFileView {
     if (version !== this.renderVersion || !this.drawing || !this.problemsEl) return;
     this.drawing.show(result.svg, result.scene.frame.infinite ?? false);
     if (this.editor && this.editor.state.doc.toString() === source) this.editor.dispatch({ effects: setLayers.of(layers(result.scene)) });
-    this.properties?.refresh();
+    this.attributes?.refresh();
+    // A deleted or renamed layer is no longer active.
+    if (this.activeLayer && !findShape(result.scene, this.activeLayer)?.layer) this.activeLayer = null;
+    this.layersView?.refresh();
     renderDiagnostics(this.problemsEl, source, result.diagnostics, (offset) => this.revealOffset(offset));
   }
 
@@ -527,7 +663,7 @@ export class ZyxView extends TextFileView {
     else void this.goToDefinition({ range: { start: 0, end: 0 }, target }, hops);
   }
 
-  /** Selects a range in the text, scrolled to the middle, with the text pane visible and focused. */
+  /** Selects a range in the text, scrolled to the middle, with the left panel (text) visible and focused. */
   private revealRange(range: SourceRange): void {
     if (this.mode === "drawing") this.setMode("split");
     if (!this.editor) return;

@@ -28,6 +28,7 @@ import {
   insertPoint,
   insertPolygon,
   insertShape,
+  intoLayer,
   isHiddenInDrawing,
   localOrigin,
   snapDelta,
@@ -49,9 +50,10 @@ import {
   type GradientDef,
   type NewShapeType,
   type Reorder,
+  type Scene,
   type Shape,
 } from "../core";
-import { colorToHex, hasSyntaxErrors } from "./properties";
+import { colorToHex, hasSyntaxErrors } from "./attributes";
 import type { Guide } from "./settings";
 import { uniqueIds } from "./svg";
 
@@ -73,6 +75,8 @@ export interface DrawingHost {
   showCoordinates(text: string | null): void;
   /** A point of the selected shape was clicked: select its numbers in the text (side by side). */
   pointSelected(path: string, index: number): void;
+  /** The active layer (issue #11): new shapes go into it. Null: at the end of the drawing. */
+  activeLayer(): string | null;
 }
 
 type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -196,7 +200,7 @@ export class DrawingEditor {
     parent: HTMLElement,
     private readonly host: DrawingHost,
   ) {
-    this.el = parent.createDiv({ cls: "zyxdraw-drawing" });
+    this.el = parent.createDiv({ cls: "zyxdraw-drawing-area" });
     this.buildToolbar(this.el.createDiv({ cls: "zyxdraw-toolbar" }));
     this.stage = this.el.createDiv({ cls: "zyxdraw-stage", attr: { tabindex: "0" } });
 
@@ -330,7 +334,7 @@ export class DrawingEditor {
       return;
     }
     this.setTool("select");
-    this.run((t) => insertPolygon(t, pts, this.fmt));
+    this.runInsert((t) => insertPolygon(t, pts, this.fmt));
   }
 
   private endDraft(): void {
@@ -424,7 +428,7 @@ export class DrawingEditor {
   private finishLine(a: { x: number; y: number }, b: { x: number; y: number }): void {
     if (this.screenDistance(a, b) < 2) return;
     this.setTool("select");
-    this.run((t) => insertLine(t, a, b, this.fmt));
+    this.runInsert((t) => insertLine(t, a, b, this.fmt));
   }
 
   private renderLineDraft(): void {
@@ -501,7 +505,7 @@ export class DrawingEditor {
       return;
     }
     this.setTool("select");
-    this.run((t) => insertPath(t, nodes, closed, this.fmt));
+    this.runInsert((t) => insertPath(t, nodes, closed, this.fmt));
   }
 
   /** Draws the path so far, the next side to the mouse, the points and the curve handles. */
@@ -692,7 +696,7 @@ export class DrawingEditor {
     return this.multi.length > 1 ? this.multi : this.selected ? [this.selected] : [];
   }
 
-  /** Selects several shapes; the last one is shown in the attributes panel. */
+  /** Selects several shapes; the last one is shown in the Attributes (bottom panel). */
   private setSelection(paths: string[]): void {
     const unique = [...new Set(paths)];
     if (unique.length <= 1) {
@@ -715,7 +719,7 @@ export class DrawingEditor {
     this.setSelection(current.includes(path) ? current.filter((p) => p !== path) : [...current, path]);
   }
 
-  /** Whether the keyboard is in the drawing (not the text or the attributes panel). */
+  /** Whether the keyboard is in the drawing (not the left panel or the bottom panel). */
   hasFocus(): boolean {
     const active = this.stage.doc.activeElement;
     return !!active && this.stage.contains(active);
@@ -768,7 +772,7 @@ export class DrawingEditor {
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });
     button("zoom-out", "Zoom out", () => this.setZoom((this.zoom ?? this.fitZoom()) / 1.25));
     button("zoom-in", "Zoom in", () => this.setZoom((this.zoom ?? this.fitZoom()) * 1.25));
-    button("maximize", "Fit to pane", () => this.setZoom(null));
+    button("maximize", "Fit to drawing area", () => this.setZoom(null));
   }
 
   // ---- fill and stroke --------------------------------------------------------------------
@@ -959,11 +963,13 @@ export class DrawingEditor {
 
   /**
    * Click selects the outermost group first. Clicking again inside the selected group selects
-   * the next level down (double-click goes straight to the innermost shape).
+   * the next level down (double-click goes straight to the innermost shape). Layers are skipped:
+   * a click selects what is in the layer, never the whole layer.
    */
   private pick(innermost: Shape): Shape {
     const chain: Shape[] = [];
-    for (let s: Shape | null = innermost; s; s = s.parent) if (!s.generated) chain.push(s);
+    for (let s: Shape | null = innermost; s; s = s.parent) if (!s.generated && !s.layer) chain.push(s);
+    if (chain.length === 0) return innermost;
     const at = chain.findIndex((s) => s.path === this.selected);
     if (at > 0) return chain[at - 1];
     if (at === 0) return chain[0];
@@ -1399,7 +1405,7 @@ export class DrawingEditor {
     const t = this.target();
     if (!t) return;
     const r = marqueeBox(d.start, delta.dx, delta.dy);
-    const inside = t.scene.roots
+    const inside = topShapes(t.scene)
       .filter((s) => !isHiddenInDrawing(s))
       .map((s) => ({ s, b: geometry(t.scene, s)?.box }))
       .filter(({ b }) => b && b.x >= r.x && b.y >= r.y && b.x + b.w <= r.x + r.w && b.y + b.h <= r.y + r.h)
@@ -1618,7 +1624,7 @@ export class DrawingEditor {
       else this.group();
     } else {
       const t = this.target();
-      if (t) this.setSelection(t.scene.roots.filter((s) => !isHiddenInDrawing(s)).map((s) => s.path));
+      if (t) this.setSelection(topShapes(t.scene).filter((s) => !isHiddenInDrawing(s)).map((s) => s.path));
     }
     return true;
   }
@@ -1647,7 +1653,7 @@ export class DrawingEditor {
       new Notice("ZyxDraw: could not read the clipboard");
       return;
     }
-    this.run((t) => pasteText(t, text));
+    this.runInsert((t) => pasteText(t, text));
   }
 
   private duplicate(): void {
@@ -1707,7 +1713,16 @@ export class DrawingEditor {
     }
     const size = type === "text" ? { w: w * 0.2, h: h * 0.1 } : { w: w * 0.2, h: type === "circle" ? w * 0.2 : h * 0.2 };
     const box = { x: Math.round(center.x - size.w / 2), y: Math.round(center.y - size.h / 2), ...size };
-    this.run((t) => insertShape(t, type, box, { defaultUnit: this.host.defaultUnit() }));
+    this.runInsert((t) => insertShape(t, type, box, { defaultUnit: this.host.defaultUnit() }));
+  }
+
+  /** Runs an edit that adds shapes: they go into the active layer, if there is one. */
+  private runInsert(op: (t: EditTarget) => EditResult): void {
+    this.run((t) => {
+      const result = op(t);
+      const layer = this.host.activeLayer();
+      return layer ? intoLayer(t, result, layer) : result;
+    });
   }
 
   /** Runs an edit against the current text (if the text is editable) and applies it. */
@@ -1734,6 +1749,11 @@ export class DrawingEditor {
     this.host.apply(edit, t.source);
     after?.();
   }
+}
+
+/** The shapes a box selection or Ctrl+A picks: top-level shapes, and the shapes in each layer instead of the layer. */
+function topShapes(scene: Scene): Shape[] {
+  return scene.roots.flatMap((s) => (s.layer ? s.children.filter((c) => !c.generated) : [s]));
 }
 
 /** The box between a drag's start and (start + delta), whichever way it was dragged. */

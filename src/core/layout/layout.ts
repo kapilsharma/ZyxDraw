@@ -233,6 +233,8 @@ class Engine {
         const a = attr(AXIS[axis].size);
         if (a) return this.toPx(len(a), s, axis, a.range);
         if (s.type === "rect") return 0;
+        // A layer without a size covers the canvas.
+        if (s.layer && !this.model.frame.infinite) return axis === 0 ? this.model.frame.width : this.model.frame.height;
         // Group without a size: bounding box of its children.
         let extent = 0;
         for (const c of s.children) {
@@ -275,7 +277,7 @@ class Engine {
       return 0;
     }
     if (!p) return axis === 0 ? this.model.frame.width : this.model.frame.height;
-    const known = p.attrs.has(AXIS[axis].size) || this.method(p, axis).k === "stretch";
+    const known = p.attrs.has(AXIS[axis].size) || this.method(p, axis).k === "stretch" || (!!p.layer && !this.model.frame.infinite);
     if (!known) {
       this.diags.error(
         Code.PercentNeedsSize,

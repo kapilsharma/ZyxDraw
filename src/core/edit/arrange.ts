@@ -16,6 +16,7 @@ import {
   canEdit,
   deleteShape,
   editableShape,
+  fullLines,
   geometry,
   moveShape,
   normalizeEdits,
@@ -450,4 +451,174 @@ function percentToPx(src: string, stmt: Statement, se: StatementEditor, base: Ba
     const n = numberOf(a);
     if (n && n.unit === "%") se.set(canonical, fmt((n.v / 100) * b));
   }
+}
+
+// ---- layers (issue #11) -----------------------------------------------------------------------
+
+/**
+ * Moves a new shape into a layer: `result` is the edit of an insert (`insertShape`, `insertPath`,
+ * `pasteText`, ...), which appends at the end of the file. Its text goes to the end of the
+ * layer's block instead, indented, with names free inside the layer. Positions keep their place
+ * on the canvas: for a layer that does not cover the canvas, they are moved and percent becomes
+ * pixels. Anything else is returned unchanged.
+ */
+export function intoLayer(target: EditTarget, result: EditResult, layerPath: string): EditResult {
+  const layer = editableShape(target.scene, layerPath);
+  const src = target.source;
+  if (!layer?.layer || result.edits.length !== 1) return result;
+  const add = result.edits[0];
+  if (add.from !== src.length || add.to !== add.from) return result;
+  const g = geometry(target.scene, layer);
+  if (!g) return result;
+
+  let text = add.insert.replace(/^\n/, "").replace(/\n+$/, "");
+  const { width, height, infinite } = target.scene.frame;
+  const coversCanvas = !infinite && g.box.x === 0 && g.box.y === 0 && g.box.w === width && g.box.h === height;
+  if (!coversCanvas) {
+    if (!infinite) text = rewriteTop(text, (s, stmt, se) => percentToPx(s, stmt, se, [width, height]));
+    if (g.box.x !== 0 || g.box.y !== 0) text = rewriteTop(text, (_s, stmt, se) => offsetPosition(stmt, se, -g.box.x, -g.box.y, [null, null]));
+  }
+  const renames = newNames(parse(text, new Diagnostics()).statements, siblingNames(target, layer));
+  text = renameTop(text, renames);
+
+  const first = layer.children.find((c) => !c.generated);
+  const indent = first
+    ? src.slice(lineStart(src, first.source.range.start), first.source.range.start)
+    : blockText(src, layer.source).indent + indentUnit(src);
+  const edits: TextEdit[] = [];
+  if (!layer.source.hasBlock) {
+    if (layer.source.closeParen === undefined) return result;
+    edits.push({ from: layer.source.closeParen + 1, to: layer.source.closeParen + 1, insert: ":" });
+  }
+  const at = lineEnd(src, layer.source.blockRange.end);
+  edits.push({ from: at, to: at, insert: "\n" + indentText(text, indent) });
+
+  const inLayer = (name: string) => `${layer.path}.${renames.get(name) ?? name}`;
+  return {
+    ...result,
+    edits: normalizeEdits(src, edits),
+    select: result.select ? inLayer(result.select) : undefined,
+    selectPaths: result.selectPaths?.map(inLayer),
+  };
+}
+
+/** Adds an empty layer at the end of the drawing (in front of everything): `layer1 is layer()`. */
+export function newLayer(target: EditTarget): EditResult {
+  const result = blank();
+  const name = freeName("layer", siblingNames(target, null));
+  result.edits = [appendLine(target.source, `${name} is layer()`)];
+  result.select = name;
+  return result;
+}
+
+/** Where a dragged row is dropped in the layers view. */
+export interface DropPlace {
+  /** The new layer or group (null = top level of the drawing). */
+  parent: string | null;
+  /** Right after this sibling in the text: drawn just in front of it. */
+  after?: string;
+  /** Right before this sibling in the text: drawn just behind it. */
+  before?: string;
+  // Neither: at the end of the parent's block, in front of all its shapes.
+}
+
+/**
+ * Moves a shape (with its children) to another place in the drawing order, possibly into another
+ * layer or group, by moving its block of text. It keeps its place on the canvas: when the parent
+ * changes, positions are moved by the difference and percent becomes pixels where the sizes
+ * differ. A name taken in the new parent gets a number. A layer stays at the top level.
+ * References to the shape by its old path are not rewritten: see `brokenReferences`.
+ */
+export function moveShapeTo(target: EditTarget, path: string, place: DropPlace): EditResult {
+  const result = blank();
+  const src = target.source;
+  const shape = editableShape(target.scene, path);
+  if (!shape || !canEdit(shape, result)) return result;
+  const parent = place.parent === null ? null : (editableShape(target.scene, place.parent) ?? undefined);
+  if (parent === undefined) return result;
+  if (parent) {
+    if (shape.layer) {
+      result.notices.push("A layer stays at the top level of the drawing");
+      return result;
+    }
+    if (parent.type !== "group" || parent.instanceOf) {
+      result.notices.push(`Only a layer or a group can hold shapes, not \`${parent.path}\``);
+      return result;
+    }
+    if (isInside(parent, shape)) {
+      result.notices.push(`\`${shape.path}\` cannot go inside itself`);
+      return result;
+    }
+    if (!canEdit(parent, result)) return result;
+  }
+  const siblings = (parent ? parent.children : target.scene.roots).filter((s) => !s.generated && s !== shape);
+  const ref = place.after ?? place.before;
+  const anchor = ref ? siblings.find((s) => s.path === ref) : undefined;
+  if (ref && !anchor) return result; // dropped on itself
+
+  // The block, as it will read in its new place.
+  const sameParent = shape.parent === parent;
+  let text = blockText(src, shape.source).text.replace(/\n+$/, "");
+  let name = shape.name;
+  let indent = blockText(src, shape.source).indent;
+  if (!sameParent) {
+    const g = geometry(target.scene, shape);
+    const pg = parent ? geometry(target.scene, parent) : null;
+    if (!g || (parent && !pg)) return result;
+    const dx = g.origin.x - (pg?.box.x ?? 0);
+    const dy = g.origin.y - (pg?.box.y ?? 0);
+    const base = contentSize(target, parent);
+    if (dx !== 0 || dy !== 0 || base[0] !== g.parentSize[0] || base[1] !== g.parentSize[1]) {
+      text = rewriteTop(text, (s, stmt, se) => percentToPx(s, stmt, se, g.parentSize));
+      if (dx !== 0 || dy !== 0) text = rewriteTop(text, (_s, stmt, se) => offsetPosition(stmt, se, dx, dy, [null, null]));
+    }
+    const renames = newNames(parse(text, new Diagnostics()).statements, siblingNames(target, parent));
+    text = renameTop(text, renames);
+    if (name) name = renames.get(name) ?? name;
+    const first = siblings[0];
+    indent = !parent ? "" : first ? src.slice(lineStart(src, first.source.range.start), first.source.range.start) : blockText(src, parent.source).indent + indentUnit(src);
+  }
+  const moved = indentText(text, indent);
+
+  const edits: TextEdit[] = [];
+  const removed = fullLines(src, shape.source.blockRange);
+  edits.push({ from: removed.from, to: removed.to, insert: "" });
+  if (anchor && place.before) {
+    const at = lineStart(src, anchor.source.blockRange.start);
+    edits.push({ from: at, to: at, insert: moved + "\n" });
+  } else {
+    const last = anchor ?? siblings[siblings.length - 1];
+    if (last) {
+      const at = lineEnd(src, last.source.blockRange.end);
+      edits.push({ from: at, to: at, insert: "\n" + moved });
+    } else if (parent) {
+      // An empty layer or group: open its block.
+      if (!parent.source.hasBlock) edits.push({ from: parent.source.closeParen! + 1, to: parent.source.closeParen! + 1, insert: ":" });
+      const at = lineEnd(src, parent.source.blockRange.end);
+      edits.push({ from: at, to: at, insert: "\n" + moved });
+    } else {
+      return result; // alone at the top level: nowhere else to go
+    }
+  }
+  // The old layer or group is left empty: close its block.
+  const old = shape.parent;
+  if (old && !sameParent && old.children.filter((c) => !c.generated).length === 1 && old.source.closeParen !== undefined) {
+    const colon = src.indexOf(":", old.source.closeParen);
+    if (colon !== -1 && colon < lineEnd(src, old.source.closeParen)) edits.push({ from: colon, to: colon + 1, insert: "" });
+  }
+
+  result.edits = normalizeEdits(src, edits);
+  if (applyEdits(src, result.edits) === src) result.edits = [];
+  if (name) result.select = parent ? `${parent.path}.${name}` : name;
+  return result;
+}
+
+/** Size that `%` refers to inside `parent` (the canvas at the top level), per axis; null if none. */
+function contentSize(target: EditTarget, parent: Shape | null): Base {
+  const { width, height, infinite } = target.scene.frame;
+  if (!parent) return infinite ? [null, null] : [width, height];
+  const box = geometry(target.scene, parent)?.box;
+  const known = (size: string, start: string, end: string) =>
+    parent.attrs.has(size) || (parent.attrs.has(start) && parent.attrs.has(end)) || (!!parent.layer && !infinite);
+  return [box && known("width", "x", "right") ? box.w : null, box && known("height", "y", "bottom") ? box.h : null];
 }
