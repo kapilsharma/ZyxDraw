@@ -1,0 +1,16 @@
+# New ZyxDraw drawing
+canvas(width=1000, height=600, background=sky)
+
+sky is gradient(from=#5fc4e4, to=#d4f2f8, angle=90)
+frame is style(fill=#CCC)
+
+# Left panel
+left_panel is rect(x=10, y=10, width=250, height=580, style=frame)
+text1 is text("Left panel (code)", x=30, y=30, font-size=20)
+
+# Drawing area
+drawing_area is rect(x=270, y=10, width=478, height=400, style=frame)
+text2 is text("Drawing area", x=299, y=33, font-size=20)
+
+# Attributes
+attributes_area is rect(x=270, y=420, width=478, height=170, style=frame)
