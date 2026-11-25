@@ -90,3 +90,17 @@ describe("go to definition", () => {
     expect(at(src, "db", "export edge, ")?.target).toEqual({ file: "cloud", name: "db" });
   });
 });
+
+describe("go to definition in a library's preview() block (#23)", () => {
+  const LIB = `import queue from shapes.system
+ec2 is shape(label):
+  r is rect(width=10, height=10)
+preview():
+  ec2(label="A")
+  queue(label="B")
+`;
+  it("links a line's shape to its definition, or to the library it is imported from", () => {
+    expect(at(LIB, "ec2", "preview():")).toEqual({ word: "ec2", target: { line: 2, text: "ec2" } });
+    expect(at(LIB, "queue", "preview():")?.target).toEqual({ file: "shapes.system", name: "queue" });
+  });
+});

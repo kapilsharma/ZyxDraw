@@ -72,6 +72,27 @@ export interface Shape {
    * without a `width` / `height` it covers the canvas.
    */
   layer?: boolean;
+  /**
+   * A cell of a library's gallery (issues #24, #25): `def` is the custom shape it shows. Without a
+   * line in `preview()` (`placeholder`), its statement is made up and points at the definition;
+   * an edit then adds a line to `preview()` instead of changing the text it points at.
+   */
+  preview?: { def: string; placeholder: boolean };
+}
+
+/** A library opened in ZyxDraw (issue #24): its custom shapes, drawn in a grid. */
+export interface Gallery {
+  /** The library's own custom shapes, in file order (eye icons, issue #25). */
+  defs: { name: string; range: SourceRange; blockRange: SourceRange; exported: boolean; hidden: boolean }[];
+  /** One cell per shape drawn: the instance, and its name under it (generated). Laid out by `arrangeGallery`. */
+  cells: { shape: Shape; label: Shape }[];
+  /** The `preview():` block, if the library has one. */
+  block: Statement | null;
+}
+
+/** `preview():` at the top level of a library (issue #23). */
+export function isPreviewBlock(s: Statement): boolean {
+  return s.kind === "shape" && s.keyword === "preview" && s.indent === 0;
 }
 
 /** A `name is clip():` block. Its shapes are resolved once, on first use. */
@@ -127,6 +148,8 @@ export interface ResolveOptions {
   libraries?: Map<string, string>;
   /** Vault path of the library folder from the settings (searched after the file's folder). */
   libraryFolder?: string;
+  /** A library's custom shapes left out of its gallery (eye icons, issue #25). */
+  galleryHidden?: readonly string[];
 }
 
 export interface Frame {
@@ -148,6 +171,8 @@ export interface Model {
   roots: Shape[];
   /** Gradients used in the drawing, in order of first use. */
   gradients?: GradientDef[];
+  /** Set when a library is compiled: its shapes, to be laid out in a grid. */
+  gallery?: Gallery;
 }
 
 export const DEFAULT_FRAME = { x: 0, y: 0, width: 1000, height: 600 };
@@ -164,8 +189,8 @@ export function resolve(tree: SyntaxTree, diags: Diagnostics, options: ResolveOp
   const scope = buildFileScope(libs.mainPath, options.source ?? "", tree, diags, libs);
   const ctx: Ctx = { diags, styles: scope.styles, counter: { next: 1 }, scope, mainScope: scope, defStack: [], usedGradients: [] };
   const top = tree.statements;
-  // A library draws nothing (its `canvas` and shapes were reported in `buildFileScope`).
-  if (scope.isLibrary) return { frame: { ...DEFAULT_FRAME }, roots: [], gradients: [] };
+  // A library draws nothing in a drawing. Opened itself, it shows its shapes (issue #24).
+  if (scope.isLibrary) return galleryModel(top, scope, ctx, new Set(options.galleryHidden ?? []));
 
   const frame = resolveCanvas(top, diags);
   if (frame.background) frame.background = paintValue(frame.background, ctx);
@@ -192,6 +217,11 @@ interface Ctx {
   defStack: ShapeDef[];
   /** Gradients used so far (shared by all contexts of one compile). */
   usedGradients: GradientDef[];
+  /**
+   * A gallery cell (issue #24): a required parameter left out shows its own name instead of
+   * being an error. Only for the cell itself, not for custom shapes inside it.
+   */
+  previewFill?: boolean;
 }
 
 /**
@@ -358,12 +388,21 @@ function buildFileScope(path: string, source: string, tree: SyntaxTree, report: 
   };
   libs.loading.push(path);
 
+  let previewBlock: Statement | null = null;
   if (scope.isLibrary) {
     for (const s of tree.statements) {
       if (s.kind === "canvas") {
         report.error(Code.LibraryDraws, "A library draws nothing: `canvas` is only for drawings", s.range);
+      } else if (isPreviewBlock(s)) {
+        // Example uses of the library's shapes, shown only when the library is open (issue #23).
+        if (s.name) report.error(Code.Preview, "`preview()` takes no name: write `preview():`", s.nameRange!);
+        if (s.attrs.length > 0 || s.args.length > 0) report.error(Code.Preview, "`preview()` takes no attributes: write `preview():`", s.range);
+        if (previewBlock) report.error(Code.Preview, "A library has one `preview()` block. Add the lines to the first one", s.keywordRange);
+        else previewBlock = s;
       } else if (s.kind === "shape") {
         report.error(Code.LibraryDraws, "A library draws nothing: put shapes inside a custom shape (`name is shape():`)", s.range);
+      } else if (s.name === "preview") {
+        report.error(Code.Preview, "In a library, `preview` is the name of the `preview():` block: choose another name", s.nameRange!);
       }
     }
   }
@@ -455,8 +494,96 @@ function buildFileScope(path: string, source: string, tree: SyntaxTree, report: 
     }
   }
 
+  // The lines of `preview()`: uses of custom shapes this library can see, placed by the gallery.
+  for (const line of previewBlock?.children ?? []) {
+    if (line.kind !== "shape" || isShapeType(line.keyword) || line.keyword === "layer") {
+      const example = [...scope.defs.keys()][0] ?? "name";
+      report.error(Code.Preview, `\`preview()\` shows the library's custom shapes: use one, such as \`${example}(...)\``, line.keywordRange);
+      continue;
+    }
+    if (!scope.defs.has(line.keyword)) {
+      report.error(Code.UnknownType, `Unknown custom shape \`${line.keyword}\` (define it with \`${line.keyword} is shape(...):\` or import it)`, line.keywordRange);
+      continue;
+    }
+    if (line.hasBlock) report.error(Code.ChildrenNotAllowed, "A line in `preview()` cannot have children", line.range);
+    for (const a of line.attrs) {
+      const canonical = SHAPES.group.aliases[a.name] ?? a.name;
+      if (POSITION_ATTRS.has(canonical)) report.error(Code.Preview, `The preview places its shapes itself: leave out \`${a.name}\``, a.range);
+    }
+  }
+
   libs.loading.pop();
   return scope;
+}
+
+/**
+ * A library opened in ZyxDraw (issue #24): one cell per line of `preview()`, and one with the
+ * default values for each own custom shape that has no line. Positions come later, from
+ * `arrangeGallery`, once the cells' sizes are known.
+ */
+function galleryModel(top: Statement[], scope: FileScope, ctx: Ctx, hidden: Set<string>): Model {
+  const block = top.find(isPreviewBlock) ?? null;
+  const lines = (block?.children ?? []).filter((l) => l.kind === "shape" && scope.defs.has(l.keyword) && !l.hasBlock);
+  const exported = exportedNames(scope);
+  const own = top.filter((s): s is Statement & { name: string } => s.kind === "shapeDef" && !!s.name && scope.defs.get(s.name)?.stmt === s);
+  const gallery: Gallery = {
+    defs: own.map((d) => ({ name: d.name, range: d.range, blockRange: d.blockRange, exported: exported.has(d.name), hidden: hidden.has(d.name) })),
+    cells: [],
+    block,
+  };
+  const roots: Shape[] = [];
+  const names = new Map<string, Statement>();
+  const cellCtx: Ctx = { ...ctx, previewFill: true };
+
+  const add = (stmt: Statement, def: string, placeholder: boolean) => {
+    const shape = resolveShape(stmt, null, names, cellCtx);
+    if (!shape) return;
+    shape.preview = { def, placeholder };
+    // An own shape left out of `export` cannot be imported: say so under it.
+    const isPrivate = scope.defs.get(def)?.scope === scope && !exported.has(def);
+    const label = resolveShape(labelStatement(isPrivate ? `${def} (not exported)` : def, isPrivate, stmt.range), null, new Map(), ctx);
+    if (!label) return;
+    label.generated = true;
+    roots.push(shape, label);
+    gallery.cells.push({ shape, label });
+  };
+
+  const placed = new Set<Statement>();
+  for (const d of own) {
+    const mine = lines.filter((l) => l.keyword === d.name);
+    mine.forEach((l) => placed.add(l));
+    if (hidden.has(d.name)) continue;
+    if (mine.length > 0) for (const l of mine) add(l, d.name, false);
+    else add(placeholderStatement(d), d.name, true);
+  }
+  // Lines that use imported shapes come after the library's own shapes.
+  for (const l of lines) if (!placed.has(l) && !hidden.has(l.keyword)) add(l, l.keyword, false);
+
+  return { frame: { ...DEFAULT_FRAME, infinite: true }, roots, gradients: ctx.usedGradients, gallery };
+}
+
+/** `database()` for a custom shape without a line in `preview()`. It points at the definition. */
+function placeholderStatement(def: Statement & { name: string }): Statement {
+  return {
+    kind: "shape",
+    keyword: def.name,
+    keywordRange: def.nameRange ?? def.keywordRange,
+    args: [],
+    attrs: [],
+    hasBlock: false,
+    children: [],
+    range: def.range,
+    blockRange: def.range,
+    indent: 0,
+  };
+}
+
+/** The name under a gallery cell: small and grey, in italics when it is not exported. */
+function labelStatement(text: string, faded: boolean, r: SourceRange): Statement {
+  const attr = (name: string, value: Value): Attr => ({ name, nameRange: r, values: [value], range: r, valueRange: r });
+  const attrs = [attr("font-size", { kind: "number", value: 12, unit: "", range: r }), attr("fill", { kind: "color", value: "#888888", range: r })];
+  if (faded) attrs.push(attr("font-style", { kind: "ident", value: "italic", range: r }));
+  return { kind: "shape", keyword: "text", keywordRange: r, args: [[{ kind: "string", value: text, range: r }]], attrs, hasBlock: false, children: [], range: r, blockRange: r, indent: 0 };
 }
 
 /** Finds and builds the library an import points to. Reports why when it cannot. */
@@ -546,7 +673,9 @@ function expandInstance(stmt: Statement, def: ShapeDef, parent: Shape | null, na
   let missing = false;
   for (const [name, fallback] of defaults) {
     const v = args.get(name) ?? fallback;
-    if (!v) {
+    if (!v && ctx.previewFill) {
+      values.set(name, [{ kind: "string", value: name, range: stmt.range }]);
+    } else if (!v) {
       diags.error(Code.MissingRequired, `Missing parameter \`${name}\` for \`${def.name}\``, stmt.range);
       missing = true;
     } else {
@@ -707,6 +836,10 @@ function resolveShape(
   if (!isShapeType(keyword)) {
     const def = ctx.scope.defs.get(stmt.keyword);
     if (def) return expandInstance(stmt, def, parent, names, ctx);
+    if (stmt.keyword === "preview" && !ctx.mainScope.isLibrary) {
+      diags.error(Code.Preview, "`preview()` is only for libraries (`.zyxdl`): it shows example uses of a library's shapes", stmt.keywordRange);
+      return null;
+    }
     diags.error(
       Code.UnknownType,
       `Unknown shape type \`${stmt.keyword}\` (define it with \`${stmt.keyword} is shape(...):\` or import it)`,

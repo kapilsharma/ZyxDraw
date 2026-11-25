@@ -100,13 +100,14 @@ const CANVAS_DEFAULTS: Record<string, string> = { width: "1000", height: "600", 
 
 /** The property sheet of a shape (by path) or of the canvas (null). */
 export function propertySheet(target: PropertyTarget, path: string | null): PropertySheet | null {
+  if (target.scene.gallery) return previewSheet(target, path);
   if (path === null) return canvasSheet(target);
   const shape = editableShape(target.scene, path);
   if (!shape) return null;
   const stmt = shape.source;
   const g = geometry(target.scene, shape);
   const sheet: PropertySheet = { path: shape.path, type: shape.instanceOf ?? shape.type, name: shape.name, fields: [], box: g?.box };
-  if (stmt.closeParen === undefined) sheet.readOnly = "Fix the syntax of this shape first (missing `)`)";
+  if (stmt.closeParen === undefined && !shape.preview?.placeholder) sheet.readOnly = "Fix the syntax of this shape first (missing `)`)";
 
   if (shape.spec.positional === "text") {
     const first = stmt.args[0];
@@ -155,6 +156,47 @@ export function propertySheet(target: PropertyTarget, path: string | null): Prop
   return sheet;
 }
 
+/** Fields of a gallery cell: what a line in `preview()` can set (issue #25). */
+const PREVIEW_FIELDS = new Set(["width", "height", "display"]);
+
+/**
+ * A library (issue #25): the Attributes of a gallery cell are its line in `preview()`: the
+ * parameters, `width` and `height`. Nothing selected: a hint instead of the canvas.
+ */
+function previewSheet(target: PropertyTarget, path: string | null): PropertySheet | null {
+  const shape = path === null ? undefined : editableShape(target.scene, path);
+  if (!shape?.preview) {
+    return { path: null, type: "Library", fields: [], readOnly: "Select a shape to try it with other values. They are written to the `preview():` block, never to the shape itself." };
+  }
+  const sheet = propertySheet({ ...target, scene: { ...target.scene, gallery: undefined } }, shape.path);
+  if (!sheet) return null;
+  sheet.fields = sheet.fields.filter((f) => f.section === "Parameters" || PREVIEW_FIELDS.has(f.name));
+  for (const f of sheet.fields) if (f.required && !f.value) f.placeholder = `${f.name} (preview)`;
+  if (shape.preview.placeholder) sheet.name = "(no line in preview yet)";
+  return sheet;
+}
+
+/**
+ * The first value set on a gallery cell without a line in `preview()` (issue #25): adds the line,
+ * `database(label="Orders")`, at the end of the block, or adds the block at the end of the file.
+ */
+function addPreviewLine(target: PropertyTarget, shape: Shape, field: PropertyField, value: string, result: EditResult): EditResult {
+  if (value === "") return result;
+  const line = `${shape.preview!.def}(${field.name}=${formatValue(field, value, shape)})`;
+  const src = target.source;
+  const block = target.scene.gallery?.block;
+  if (block) {
+    const last = block.children[block.children.length - 1];
+    const indent = last ? " ".repeat(last.indent) : "  ";
+    const after = last ? last.blockRange.end : block.range.end;
+    result.edits = [{ from: after, to: after, insert: `\n${indent}${line}` }];
+  } else {
+    const gap = src.length === 0 ? "" : src.endsWith("\n\n") ? "" : src.endsWith("\n") ? "\n" : "\n\n";
+    result.edits = [{ from: src.length, to: src.length, insert: `${gap}preview():\n  ${line}\n` }];
+  }
+  return result;
+}
+
 function canvasSheet(target: PropertyTarget): PropertySheet {
   const stmt = target.tree.statements.find((s) => s.kind === "canvas");
   const { x, y, width, height, infinite } = target.scene.frame;
@@ -195,12 +237,14 @@ export function setProperty(target: PropertyTarget, path: string | null, name: s
   if (path === null) return setCanvasProperty(target, name, value, result);
 
   const shape = editableShape(target.scene, path)!;
+  if (shape.preview?.placeholder) return addPreviewLine(target, shape, field, value, result);
   if (!canEdit(shape, result)) return result;
   const se = new StatementEditor(target.source, shape.source, shape.spec.aliases);
   if (field.kind === "content") {
     se.setContent(quote(value));
   } else if (value === "") {
-    if (field.required) {
+    // In `preview()` a left-out parameter shows its name (issue #23), so it may be removed.
+    if (field.required && !shape.preview) {
       result.notices.push(`\`${name}\` is required for \`${sheet.type}\``);
       return result;
     }
@@ -283,7 +327,10 @@ function formatValue(field: PropertyField, value: string, shape: Shape): string 
       const p = shape.params?.find((x) => x.name === field.name);
       const current = shape.source.attrs.find((a) => a.name === field.name);
       const wasString = current?.values.length === 1 && current.values[0].kind === "string";
-      return p?.isString || wasString || !looksLikeValue(value) ? quote(value) : value;
+      // No default to tell the kind: a word is most likely text (`label=Web` would not be). Quoted
+      // colors work too; numbers and `#hex` colors stay as typed.
+      const guessText = p?.default === undefined && !current && !/^[-+]?(\d+\.?\d*|\.\d+)(px|%)?$/.test(value) && !/^#[0-9a-fA-F]{3,8}$/.test(value);
+      return p?.isString || wasString || guessText || !looksLikeValue(value) ? quote(value) : value;
     }
     default:
       return value;

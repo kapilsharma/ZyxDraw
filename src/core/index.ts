@@ -1,6 +1,7 @@
 // Public API of the core. Pure TypeScript: no Obsidian, no DOM, no file access.
 import { fitInfiniteFrame } from "./bounds";
 import { Code, Diagnostics, type Diagnostic } from "./diagnostics";
+import { arrangeGallery } from "./gallery";
 import { approxMeasurer, layout, type Scene, type TextMeasurer } from "./layout/layout";
 import { render } from "./render/render";
 import { loadLibraries, type ReadFile } from "./resolve/library";
@@ -19,6 +20,10 @@ export interface CompileOptions {
   libraries?: Map<string, string>;
   /** Vault path of the library folder from the settings, searched after the file's own folder. */
   libraryFolder?: string;
+  /** A library's gallery (issue #24): the width to fit columns in, in pixels. */
+  galleryWidth?: number;
+  /** A library's custom shapes left out of its gallery (eye icons, issue #25). */
+  galleryHidden?: readonly string[];
 }
 
 export interface CompileResult {
@@ -37,8 +42,19 @@ export interface CompileResult {
 export function compile(source: string, options: CompileOptions = {}): CompileResult {
   const diags = new Diagnostics();
   const tree = parse(source, diags);
-  const model = resolve(tree, diags, { path: options.path, source, libraries: options.libraries, libraryFolder: options.libraryFolder });
-  const scene = layout(model, diags, options.measurer ?? approxMeasurer);
+  const model = resolve(tree, diags, {
+    path: options.path,
+    source,
+    libraries: options.libraries,
+    libraryFolder: options.libraryFolder,
+    galleryHidden: options.galleryHidden,
+  });
+  const measurer = options.measurer ?? approxMeasurer;
+  if (model.gallery) {
+    // A library's cells are placed once their sizes are known (problems come from the second layout).
+    arrangeGallery(model, layout(model, new Diagnostics(), measurer), options.galleryWidth);
+  }
+  const scene = layout(model, diags, measurer);
   fitInfiniteFrame(scene);
   const svg = render(scene, { metadata: options.metadata });
   const diagnostics = [...diags.list].sort((a, b) => a.range.start - b.range.start);
@@ -57,7 +73,9 @@ export async function compileWithImports(
 
 export { Code, Diagnostics, type Diagnostic, type Severity } from "./diagnostics";
 export { loadLibraries, importCandidates, isLibraryPath, type ReadFile } from "./resolve/library";
-export type { Shape, Model, Frame, GradientDef } from "./resolve/resolve";
+export type { Shape, Model, Frame, GradientDef, Gallery } from "./resolve/resolve";
+export { isPreviewBlock } from "./resolve/resolve";
+export { GALLERY_GAP, GALLERY_WIDTH, galleryLayers } from "./gallery";
 export type { Box, Placed } from "./layout/layout";
 export { GRADIENT, SHAPES, STOP, isShapeType, type ShapeType, type AttrSpec } from "./builtins/catalog";
 export * from "./edit/edit";

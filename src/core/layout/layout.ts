@@ -1,6 +1,6 @@
 import { Code, Diagnostics } from "../diagnostics";
 import { pathBounds, pointsBounds, type Bounds } from "../geometry";
-import type { Frame, GradientDef, Len, Model, RAttr, Shape } from "../resolve/resolve";
+import type { Frame, Gallery, GradientDef, Len, Model, RAttr, Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 
 export interface FontSpec {
@@ -48,6 +48,8 @@ export interface Scene {
   clips: Map<number, Scene>;
   /** Gradients used by the drawing (written to the SVG's defs). */
   gradients?: GradientDef[];
+  /** A library opened in ZyxDraw: its shapes in a grid (issue #24). */
+  gallery?: Gallery;
 }
 
 /** Hard limit on layout steps: a second guard (besides the cycle check) against hanging Obsidian. */
@@ -112,7 +114,7 @@ class Engine {
       s.children.forEach(visitClips);
     };
     this.model.roots.forEach(visitClips);
-    return { frame: this.model.frame, roots: this.model.roots, placed, clips, gradients: this.model.gradients ?? [] };
+    return { frame: this.model.frame, roots: this.model.roots, placed, clips, gradients: this.model.gradients ?? [], gallery: this.model.gallery };
   }
 
   // ---- memo + cycle detection ---------------------------------------------------------------

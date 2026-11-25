@@ -22,3 +22,8 @@ queue is shape(label, width=140, height=40):
   body is rect(width=100%, height=100%, fill=#fff4d6, stroke=#b8860b, stroke-width=2, stroke-dasharray="6 3")
   name is text(label, x=50%, y=12, align=middle, style=label)
   
+# Example uses, shown when this library is open in ZyxDraw. Drawings never draw them.
+preview():
+  service(label="Checkout")
+  database(label="Orders")
+  queue(label="Events")

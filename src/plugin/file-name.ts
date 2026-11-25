@@ -1,4 +1,5 @@
-// Checks a name typed for a new drawing. No Obsidian imports, so tests can check it.
+// Checks a name typed for a new drawing or library. No Obsidian imports, so tests can check it.
+import { libraryNameProblem } from "../core";
 
 /** Characters no file name may contain (Windows, macOS, Linux, mobile). */
 const FORBIDDEN = /[\\/:*?"<>|]/;
@@ -23,8 +24,22 @@ export function drawingBaseName(typed: string, extension: string): { name: strin
   return { name };
 }
 
-/** `Untitled`, or `Untitled 1`, `Untitled 2`, ... when taken. */
-export function freeName(base: string, taken: (name: string) => boolean): string {
+/**
+ * The library name for what the user typed, or the problem with it (issue #22).
+ * It follows the import rules, so the name typed is the name drawings import:
+ * `cloud.aws` is the file `cloud/aws.zyxdl`. A typed `.zyxdl` at the end is dropped.
+ */
+export function libraryBaseName(typed: string): { name: string } | { problem: string } {
+  let name = typed.trim();
+  if (name.toLowerCase().endsWith(".zyxdl")) name = name.slice(0, -".zyxdl".length).trim();
+  if (name === "") return { problem: "Enter a name" };
+  if (/\s/.test(name)) return { problem: "A library name cannot contain spaces: use `_`, like `my_shapes`" };
+  const problem = libraryNameProblem(name);
+  return problem ? { problem } : { name };
+}
+
+/** `Untitled`, or `Untitled 1`, `Untitled 2`, ... when taken. Libraries use `_` (no spaces). */
+export function freeName(base: string, taken: (name: string) => boolean, separator = " "): string {
   if (!taken(base)) return base;
-  for (let i = 1; ; i++) if (!taken(`${base} ${i}`)) return `${base} ${i}`;
+  for (let i = 1; ; i++) if (!taken(`${base}${separator}${i}`)) return `${base}${separator}${i}`;
 }

@@ -18,7 +18,7 @@ export interface HighlightRange {
   cls: TokenClass;
 }
 
-const KEYWORDS = new Set(["style", "canvas", "shape", "clip", "gradient", "stop", "import", "export", "from", "is", "layer", ...Object.keys(SHAPES)]);
+const KEYWORDS = new Set(["style", "canvas", "shape", "clip", "gradient", "stop", "import", "export", "from", "is", "layer", "preview", ...Object.keys(SHAPES)]);
 /** `name is type(`: the word at the start of a line is a name when `is` follows it. */
 const IS_FOLLOWS = /[ \t]+is\b/y;
 

@@ -112,7 +112,7 @@ primary is style(fill=yellow, stroke=red, stroke-width=2)
 
 The syntax is `name is type`. Here, `primary` is just a name that we want to refer to later, while applying the style.
 
-`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas`, `import`, `export` and `layer`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either.
+`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas`, `import`, `export` and `layer`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either. In a library, `preview` is reserved too.
 
 After style, we have `()`. Within it, we have attributes, which are in the format `attribute=value`. There is a huge list of attributes, which we will see later in detail. They are also listed in the **Attributes**, in the bottom panel under the drawing area.
 
@@ -248,6 +248,7 @@ The plugin, in its first version, comes with a lot of useful commands, and the l
 ## Getting started
 
 - **New drawing:** right-click a folder in the file explorer and choose **New ZyxDraw drawing**, or use the ribbon icon or the command **ZyxDraw: New drawing**. It asks for the name, then creates and opens the `.zyxd` file.
+- **New library:** right-click a folder and choose **New ZyxDraw library**, or use the command **ZyxDraw: New library** (it creates the file in the library folder from the settings). A dot in the name makes a folder: `cloud.aws` creates `cloud/aws.zyxdl`. The new library has one example shape and says how to import it.
 - **Panels:** a drawing opens in panels. Drag the line between two panels to resize them; double-click it to reset.
   - **Left panel:** the text.
   - **Drawing area:** the drawing and its toolbar.
@@ -528,6 +529,10 @@ service is shape(label, width=140, height=60):
   name is text(label, x=50%, y=20, align=middle, style=label)
 
 export service
+
+# Shown only when this library is open in ZyxDraw
+preview():
+  service(label="Checkout")
 ```
 
 ```text
@@ -542,7 +547,12 @@ import service as box from shapes.system
 - `export a, b` lists what other files can import. Without it, everything is exported. A library can export what it imported.
 - `import *` brings in everything exported. `as` gives an imported name another name in this file.
 - Later imports override earlier ones, and a local definition always wins. Circular imports and definitions are reported.
-- Open a library to edit its text. To see its shapes, import them in a drawing: it is redrawn each time the library is saved.
+- Create a library with **New ZyxDraw library** in a folder's right-click menu, or the command **ZyxDraw: New library**.
+- `preview():` lists example uses of the library's shapes, written as in a drawing but without `x` and `y`. It is only shown when the library is open: drawings that import the library never draw it.
+- **Open a library** to see all its custom shapes in a grid, each with its name ("not exported" for shapes left out of `export`). A shape without a line in `preview()` uses its defaults, and a parameter without a default shows its own name.
+  - Click a shape, or put the text cursor on its line, to try other values in the **Attributes**: they are written to `preview()`, never to the shape itself. The first value for a shape adds its line (and the `preview():` block when there is none).
+  - The eye next to a `name is shape(...):` line hides that shape in the drawing area only. The eye next to a line in `preview()` writes `display=none` there.
+  - Shapes cannot be moved or added in a library's drawing area, and there are no Layers.
 
 ## Export
 

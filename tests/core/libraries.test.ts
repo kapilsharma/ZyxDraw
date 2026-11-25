@@ -249,7 +249,8 @@ describe("a library draws nothing", () => {
       "A library draws nothing: `canvas` is only for drawings",
       "A library draws nothing: put shapes inside a custom shape (`name is shape():`)",
     ]);
-    expect(elements(svg, "rect")).toHaveLength(0);
+    // Opened itself, a library shows its custom shapes (#24), never the top-level `box`.
+    expect(elements(svg, "rect").map((r) => r.attrs.width)).not.toContain("5");
   });
 
   it("shows a library's problems on the import line", () => {
