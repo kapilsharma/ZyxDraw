@@ -18,7 +18,7 @@ export interface HighlightRange {
   cls: TokenClass;
 }
 
-const KEYWORDS = new Set(["style", "canvas", "shape", "clip", "gradient", "stop", "import", "from", "is", "layer", ...Object.keys(SHAPES)]);
+const KEYWORDS = new Set(["style", "canvas", "shape", "clip", "gradient", "stop", "import", "export", "from", "is", "layer", ...Object.keys(SHAPES)]);
 /** `name is type(`: the word at the start of a line is a name when `is` follows it. */
 const IS_FOLLOWS = /[ \t]+is\b/y;
 
@@ -33,8 +33,9 @@ export function scanHighlights(text: string): HighlightRange[] {
   const out: HighlightRange[] = [];
   let depth = 0;
   let atStart = true;
-  /** After `import`: the names it imports. */
-  let expectName = false;
+  /** An `import` or `export` line: its names, then `from` and the library name. */
+  let listLine = false;
+  let afterFrom = false;
   /** After a name: `is`, then the type. */
   let expectIs = false;
   let expectType = false;
@@ -57,7 +58,7 @@ export function scanHighlights(text: string): HighlightRange[] {
       i++;
       if (depth === 0) {
         atStart = true;
-        expectName = expectIs = expectType = false;
+        listLine = afterFrom = expectIs = expectType = false;
       }
       continue;
     }
@@ -88,7 +89,7 @@ export function scanHighlights(text: string): HighlightRange[] {
           expectIs = true;
           push(m.length, "def");
         } else {
-          expectName = m === "import";
+          listLine = m === "import" || m === "export";
           push(m.length, KEYWORDS.has(m) ? "keyword" : "type");
         }
       } else if (depth === 0 && expectIs && m === "is") {
@@ -98,9 +99,9 @@ export function scanHighlights(text: string): HighlightRange[] {
       } else if (depth === 0 && expectType) {
         expectType = false;
         push(m.length, KEYWORDS.has(m) ? "keyword" : "type");
-      } else if (depth === 0 && expectName) {
-        expectName = false;
-        push(m.length, "def");
+      } else if (depth === 0 && listLine) {
+        if (m === "from") afterFrom = true;
+        push(m.length, m === "from" || m === "as" ? "keyword" : afterFrom ? "variable" : "def");
       } else {
         ATTR_FOLLOWS.lastIndex = i + m.length;
         const isAttr = depth > 0 && ATTR_FOLLOWS.test(text);
@@ -108,7 +109,7 @@ export function scanHighlights(text: string): HighlightRange[] {
       }
     } else {
       atStart = false;
-      expectName = expectIs = expectType = false;
+      expectIs = expectType = false; // an import or export line keeps going after `,` and `*`
       if (c === "(") depth++;
       else if (c === ")") depth = Math.max(0, depth - 1);
       if (c === "=") {

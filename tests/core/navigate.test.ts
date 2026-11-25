@@ -14,7 +14,7 @@ function at(source: string, word: string, after = "") {
   };
 }
 
-const SRC = `import service, database from shapes/system
+const SRC = `import service, database from shapes.system
 card is style(fill=white)
 half is clip():
   rect(width=100%, height=50%)
@@ -31,13 +31,13 @@ line(from=g.inner, to=b)
 
 describe("go to definition", () => {
   it("import names and the import path go to the library", () => {
-    expect(at(SRC, "service")).toEqual({ word: "service", target: { file: "shapes/system", name: "service" } });
-    expect(at(SRC, "database")).toEqual({ word: "database", target: { file: "shapes/system", name: "database" } });
-    expect(at(SRC, "shapes/system")).toEqual({ word: "shapes/system", target: { file: "shapes/system" } });
+    expect(at(SRC, "service")).toEqual({ word: "service", target: { file: "shapes.system", name: "service" } });
+    expect(at(SRC, "database")).toEqual({ word: "database", target: { file: "shapes.system", name: "database" } });
+    expect(at(SRC, "shapes.system")).toEqual({ word: "shapes.system", target: { file: "shapes.system" } });
   });
 
   it("a custom shape type goes to its definition (imported or local)", () => {
-    expect(at(SRC, "service", "web is ")).toEqual({ word: "service", target: { file: "shapes/system", name: "service" } });
+    expect(at(SRC, "service", "web is ")).toEqual({ word: "service", target: { file: "shapes.system", name: "service" } });
     expect(at(SRC, "box", "b is ")).toEqual({ word: "box", target: { line: 5, text: "box" } });
   });
 
@@ -63,5 +63,30 @@ describe("go to definition", () => {
     expect(at(SRC, "rect")).toBeNull();
     expect(at(SRC, "20", "web ")).toBeNull();
     expect(at(SRC, "white")).toBeNull();
+  });
+
+  it("`as` names go to the original name in the library", () => {
+    const src = "import lambda as ly from cloud.aws\nf is ly()";
+    expect(at(src, "ly")).toEqual({ word: "ly", target: { file: "cloud.aws", name: "lambda" } });
+    expect(at(src, "ly", "f is ")).toEqual({ word: "ly", target: { file: "cloud.aws", name: "lambda" } });
+  });
+
+  it("names from `import *` go to that library; a named import wins", () => {
+    const src = "import * from shapes.system\nimport box from lib\nweb is service()\nb is box()";
+    expect(at(src, "service")?.target).toEqual({ file: "shapes.system", name: "service" });
+    expect(at(src, "box", "b is ")?.target).toEqual({ file: "lib", name: "box" });
+  });
+
+  it("imported styles, gradients and clips go to their library", () => {
+    const src = "import primary, sky, half from look\nr is rect(style=primary, fill=sky, clip-path=half)";
+    expect(at(src, "primary", "style=")?.target).toEqual({ file: "look", name: "primary" });
+    expect(at(src, "sky", "fill=")?.target).toEqual({ file: "look", name: "sky" });
+    expect(at(src, "half", "clip-path=")?.target).toEqual({ file: "look", name: "half" });
+  });
+
+  it("exported names go to their definition", () => {
+    const src = "import db from cloud\nedge is style(stroke=red)\nexport edge, db";
+    expect(at(src, "edge", "export ")?.target).toEqual({ line: 2, text: "edge" });
+    expect(at(src, "db", "export edge, ")?.target).toEqual({ file: "cloud", name: "db" });
   });
 });

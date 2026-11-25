@@ -1,11 +1,12 @@
 import { Code, Diagnostics } from "../diagnostics";
-import type { Attr, Expr, SourceRange, Statement, StatementKind, SyntaxTree, Value } from "./ast";
+import type { Attr, Expr, ImportName, SourceRange, Statement, StatementKind, SyntaxTree, Value } from "./ast";
+import { libraryNameProblem } from "./library-name";
 import { tokenize, type LineInfo, type Token } from "./tokenizer";
 import { SHAPES } from "../builtins/catalog";
 
 /** Words that cannot be names: keywords and the built-in shape types. */
 const RESERVED = new Map<string, string>([
-  ...["is", "style", "shape", "clip", "gradient", "canvas", "import", "layer"].map((k): [string, string] => [k, "keyword"]),
+  ...["is", "style", "shape", "clip", "gradient", "canvas", "import", "export", "layer"].map((k): [string, string] => [k, "keyword"]),
   ...Object.keys(SHAPES).map((k): [string, string] => [k, "built-in shape type"]),
 ]);
 
@@ -103,7 +104,10 @@ function parseStatement(tokens: Token[], indent: number, source: string, diags: 
     return null;
   }
 
-  if (first.text === "import") return parseImport(tokens, indent, whole, diags);
+  // `export is rect()` falls through, to be reported as a reserved name.
+  const named = tokens[1]?.kind === "ident" && tokens[1].text === "is";
+  if (first.text === "import" && !named) return parseImport(tokens, indent, whole, diags);
+  if (first.text === "export" && !named) return parseExport(tokens, indent, whole, diags);
   if (first.text === "is") {
     diags.error(Code.ExpectedStatement, "`is` needs a name before it, like `box is rect(...)`", range(first));
     return null;
@@ -127,9 +131,10 @@ function parseStatement(tokens: Token[], indent: number, source: string, diags: 
     if (RESERVED.has(name)) {
       diags.error(Code.ReservedName, `\`${name}\` is a ${RESERVED.get(name)} and cannot be used as a name`, nameRange);
     }
-    if (t.text === "import" || t.text === "canvas") {
-      diags.error(Code.ExpectedStatement, `\`${t.text}\` does not take a name: write \`${t.text}${t.text === "import" ? " ..." : "(...)"}\` on its own`, range(first));
-      if (t.text === "import") return null;
+    if (t.text === "import" || t.text === "export" || t.text === "canvas") {
+      const line = t.text === "canvas" ? "(...)" : " ...";
+      diags.error(Code.ExpectedStatement, `\`${t.text}\` does not take a name: write \`${t.text}${line}\` on its own`, range(first));
+      if (t.text !== "canvas") return null;
     }
   } else if (tokens[1]?.kind === "ident" && tokens[2]?.kind === "punct" && tokens[2].text === "(") {
     // The old form `rect box(...)`: report it, then read it as `box is rect(...)` so the rest
@@ -205,25 +210,34 @@ function parseStatement(tokens: Token[], indent: number, source: string, diags: 
   };
 }
 
-/** `import name[, name] from path` where path is `icons.zyxd` or `"lib/icons.zyxd"`. */
+/**
+ * `import a, b as c from library` or `import * from library`. The library name is dotted
+ * (`shapes.system`); the tokenizer hands it over as one string token.
+ */
 function parseImport(tokens: Token[], indent: number, whole: SourceRange, diags: Diagnostics): Statement | null {
-  const names: { name: string; range: SourceRange }[] = [];
+  let names: ImportName[] = [];
+  let all = false;
   let p = 1;
-  for (;;) {
-    const t = tokens[p];
-    if (!t || t.kind !== "ident" || t.text === "from") break;
-    names.push({ name: t.text, range: range(t) });
+  if (tokens[p]?.kind === "punct" && tokens[p].text === "*") {
+    all = true;
     p++;
-    if (tokens[p]?.kind === "punct" && tokens[p].text === ",") p++;
-    else break;
+    if (tokens[p]?.kind === "ident" && tokens[p].text === "as") {
+      const alias = tokens[p + 1]?.kind === "ident" && tokens[p + 1].text !== "from" ? tokens[p + 1] : undefined;
+      diags.error(Code.ExpectedStatement, "`as` works only with named imports, like `import lambda as ly from cloud.aws`", spanOf(tokens.slice(p, alias ? p + 2 : p + 1)));
+      p += alias ? 2 : 1;
+    }
+  } else {
+    ({ names, next: p } = parseNameList(tokens, p, true, diags));
   }
   const fromTok = tokens[p];
   const pathTok = tokens[p + 1];
-  if (names.length === 0 || !fromTok || fromTok.text !== "from" || !pathTok || (pathTok.kind !== "ident" && pathTok.kind !== "string")) {
-    diags.error(Code.ExpectedStatement, "Expected `import name from file` (for example `import database from shapes.zyxd`)", whole);
+  if ((!all && names.length === 0) || !fromTok || fromTok.text !== "from" || !pathTok || (pathTok.kind !== "ident" && pathTok.kind !== "string")) {
+    diags.error(Code.ExpectedStatement, "Expected `import name from library` (for example `import database from shapes.system`)", whole);
     return null;
   }
-  if (tokens.length > p + 2) diags.error(Code.TrailingText, "Unexpected text after the import path", spanOf(tokens.slice(p + 2)));
+  if (tokens.length > p + 2) diags.error(Code.TrailingText, "Unexpected text after the library name", spanOf(tokens.slice(p + 2)));
+  const problem = libraryNameProblem(String(pathTok.value));
+  if (problem) diags.error(Code.InvalidLibraryName, problem, range(pathTok));
   return {
     kind: "import",
     keyword: "import",
@@ -236,9 +250,69 @@ function parseImport(tokens: Token[], indent: number, whole: SourceRange, diags:
     blockRange: whole,
     indent,
     importNames: names,
+    importAll: all,
     importPath: String(pathTok.value),
     importPathRange: range(pathTok),
   };
+}
+
+/** `export a, b`: the names a library lets other files import. */
+function parseExport(tokens: Token[], indent: number, whole: SourceRange, diags: Diagnostics): Statement | null {
+  const { names, next } = parseNameList(tokens, 1, false, diags);
+  if (names.length === 0) {
+    diags.error(Code.ExpectedStatement, "Expected `export name, name` (for example `export database, primary`)", whole);
+    return null;
+  }
+  if (tokens.length > next) diags.error(Code.TrailingText, "Unexpected text after the exported names", spanOf(tokens.slice(next)));
+  return {
+    kind: "export",
+    keyword: "export",
+    keywordRange: range(tokens[0]),
+    args: [],
+    attrs: [],
+    hasBlock: false,
+    children: [],
+    range: whole,
+    blockRange: whole,
+    indent,
+    exportNames: names,
+  };
+}
+
+/** `a, b as c, d` from `tokens[p]` on, stopping before `from` or anything else. */
+function parseNameList(tokens: Token[], p: number, allowAlias: boolean, diags: Diagnostics): { names: ImportName[]; next: number } {
+  const names: ImportName[] = [];
+  for (;;) {
+    const t = tokens[p];
+    if (!t || t.kind !== "ident" || t.text === "from") break;
+    if (t.text.includes(".")) {
+      diags.error(Code.ExpectedStatement, `\`${t.text}\` is not a name: a library name comes after \`from\`, like \`import database from shapes.system\``, range(t));
+    }
+    const item: ImportName = { name: t.text, range: range(t) };
+    p++;
+    const as = tokens[p];
+    if (as?.kind === "ident" && as.text === "as") {
+      const alias = tokens[p + 1];
+      if (!allowAlias) {
+        diags.error(Code.ExpectedStatement, "`as` is only for imports: export the name the library uses", range(as));
+        p += alias?.kind === "ident" ? 2 : 1;
+      } else if (alias?.kind === "ident" && alias.text !== "from") {
+        item.alias = alias.text;
+        item.aliasRange = range(alias);
+        if (RESERVED.has(alias.text)) {
+          diags.error(Code.ReservedName, `\`${alias.text}\` is a ${RESERVED.get(alias.text)} and cannot be used as a name`, range(alias));
+        }
+        p += 2;
+      } else {
+        diags.error(Code.ExpectedStatement, "Expected a new name after `as`, like `import lambda as ly from cloud.aws`", range(as));
+        p++;
+      }
+    }
+    names.push(item);
+    if (tokens[p]?.kind === "punct" && tokens[p].text === ",") p++;
+    else break;
+  }
+  return { names, next: p };
 }
 
 /** Splits the tokens between `( )` into items: separated by `,` or by a line break. */

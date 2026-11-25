@@ -33,6 +33,19 @@ describe("editor highlighting", () => {
     expect(c.get("card")).toBe("def");
   });
 
+  it("colors import names, `as`, `from`, the library name and `export`", () => {
+    const c = classes("import lambda as ly, queue from cloud.aws\nexport edge, db");
+    expect(c.get("lambda")).toBe("def");
+    expect(c.get("as")).toBe("keyword");
+    expect(c.get("ly")).toBe("def");
+    expect(c.get("queue")).toBe("def");
+    expect(c.get("from")).toBe("keyword");
+    expect(c.get("cloud.aws")).toBe("variable");
+    expect(c.get("export")).toBe("keyword");
+    expect(c.get("edge")).toBe("def");
+    expect(c.get("db")).toBe("def");
+  });
+
   it("handles multi-line attribute lists and trailing comments", () => {
     const c = classes("a is rect(\n  width=10\n  fill=red  # why\n)");
     expect(c.get("width")).toBe("property");

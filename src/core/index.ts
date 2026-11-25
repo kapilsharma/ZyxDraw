@@ -17,6 +17,8 @@ export interface CompileOptions {
   path?: string;
   /** Library sources by vault path. Load them first with `loadLibraries`. */
   libraries?: Map<string, string>;
+  /** Vault path of the library folder from the settings, searched after the file's own folder. */
+  libraryFolder?: string;
 }
 
 export interface CompileResult {
@@ -35,7 +37,7 @@ export interface CompileResult {
 export function compile(source: string, options: CompileOptions = {}): CompileResult {
   const diags = new Diagnostics();
   const tree = parse(source, diags);
-  const model = resolve(tree, diags, { path: options.path, source, libraries: options.libraries });
+  const model = resolve(tree, diags, { path: options.path, source, libraries: options.libraries, libraryFolder: options.libraryFolder });
   const scene = layout(model, diags, options.measurer ?? approxMeasurer);
   fitInfiniteFrame(scene);
   const svg = render(scene, { metadata: options.metadata });
@@ -49,12 +51,12 @@ export async function compileWithImports(
   read: ReadFile,
   options: Omit<CompileOptions, "libraries"> = {},
 ): Promise<CompileResult> {
-  const libraries = await loadLibraries(source, options.path ?? "", read);
+  const libraries = await loadLibraries(source, options.path ?? "", read, options.libraryFolder);
   return compile(source, { ...options, libraries });
 }
 
 export { Code, Diagnostics, type Diagnostic, type Severity } from "./diagnostics";
-export { loadLibraries, importCandidates, type ReadFile } from "./resolve/library";
+export { loadLibraries, importCandidates, isLibraryPath, type ReadFile } from "./resolve/library";
 export type { Shape, Model, Frame, GradientDef } from "./resolve/resolve";
 export type { Box, Placed } from "./layout/layout";
 export { GRADIENT, SHAPES, STOP, isShapeType, type ShapeType, type AttrSpec } from "./builtins/catalog";
@@ -87,15 +89,16 @@ export { penPathData, type PenNode, type Pt } from "./edit/path-nodes";
 export { shapeTransform } from "./transform";
 export { formatCoordinate, gridPath, gridSteps, snapDelta } from "./grid";
 export { contentBounds, INFINITE_PADDING, type Bounds } from "./bounds";
-export { definitionAt, shapeDefinition, topLevel, type DefinitionLink, type DefinitionTarget } from "./navigate";
+export { definitionAt, nameDefinition, shapeDefinition, topLevel, type DefinitionLink, type DefinitionTarget } from "./navigate";
 export { toJsonCanvas, type JsonCanvas } from "./export/json-canvas";
 export type { FontSpec, TextMeasurer, Scene } from "./layout/layout";
 export { approxMeasurer } from "./layout/layout";
 export { parse } from "./syntax/parser";
+export { libraryFile, libraryNameProblem } from "./syntax/library-name";
 export { resolve } from "./resolve/resolve";
 export { layout } from "./layout/layout";
 export { render, esc as escapeXml } from "./render/render";
-export type { SourceRange, SyntaxTree, Statement, Attr, Value } from "./syntax/ast";
+export type { SourceRange, SyntaxTree, Statement, Attr, Value, ImportName } from "./syntax/ast";
 
 /**
  * References an edit would break: "unknown shape" problems that the text after the edit has and

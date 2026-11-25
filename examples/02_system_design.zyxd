@@ -1,5 +1,11 @@
 # System design example: custom shapes imported from a custom library.
-import service, database, queue from shapes/system
+
+# Option 1: Import everything
+# import * from shapes.system
+
+# Option2: Only import what you need
+import service, database, queue from shapes.system
+# import * from shapes.system
 
 canvas(width=720, height=380, background=white)
 

@@ -18,7 +18,7 @@ import {
   layers,
   parse,
   toggleHidden,
-  shapeDefinition,
+  nameDefinition,
   type CompileResult,
   type DefinitionLink,
   type EditResult,
@@ -473,6 +473,8 @@ export class ZyxView extends TextFileView {
       if (clear) {
         // A different file was loaded: fresh state, so undo history does not leak between files.
         this.editor.setState(this.createState(data));
+        // A library draws nothing: it opens as text only (the view button still switches).
+        if (this.file?.extension === "zyxdl" && this.mode !== "source") this.setMode("source");
       } else if (this.editor.state.doc.toString() !== data) {
         // The file changed outside this view (another pane, sync): replace the text.
         this.applyingFileText = true;
@@ -511,6 +513,7 @@ export class ZyxView extends TextFileView {
       const promise = compileInVault(this.app, source, this.file?.path ?? "", {
         measurer: this.measurer ?? undefined,
         metadata: true,
+        libraryFolder: this.plugin.settings.libraryFolder,
       }).then((result) => {
         if (this.pending?.promise === promise) this.resolved = { source, result };
         return result;
@@ -632,7 +635,7 @@ export class ZyxView extends TextFileView {
       this.revealRange(t.range);
       return;
     }
-    const candidates = importCandidates(this.file?.path ?? "", t.file);
+    const candidates = importCandidates(this.file?.path ?? "", t.file, this.plugin.settings.libraryFolder);
     const file = candidates.map((p) => this.app.vault.getAbstractFileByPath(p)).find((f): f is TFile => f instanceof TFile);
     if (!file) {
       new Notice(`ZyxDraw: cannot find \`${t.file}\``);
@@ -648,7 +651,7 @@ export class ZyxView extends TextFileView {
     if (leaf.view instanceof ZyxView) leaf.view.revealName(t.name, hops + 1);
   }
 
-  /** Shows the definition of a custom shape in this file (or follows it further if imported here). */
+  /** Shows the definition of a name in this file (or follows it further if imported here). */
   revealName(name: string | undefined, hops = 0): void {
     if (!this.editor || (this.editor.state.doc.length === 0 && this.text === "")) {
       this.pendingReveal = { name, hops }; // file not loaded yet
@@ -658,7 +661,7 @@ export class ZyxView extends TextFileView {
       this.revealRange({ start: 0, end: 0 });
       return;
     }
-    const target = shapeDefinition(parse(this.editor.state.doc.toString(), new Diagnostics()).statements, name);
+    const target = nameDefinition(parse(this.editor.state.doc.toString(), new Diagnostics()).statements, name);
     if (!target) new Notice(`ZyxDraw: \`${name}\` is not defined in ${this.file?.path ?? "this file"}`);
     else void this.goToDefinition({ range: { start: 0, end: 0 }, target }, hops);
   }

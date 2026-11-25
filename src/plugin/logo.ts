@@ -20,15 +20,6 @@ export function logoSvg(): string {
 }
 
 /**
- * The logo as a CSS `url(...)` value: one line, URL-encoded. `styles.css` holds a copy for the
- * file explorer icon (CSS cannot call code); a test checks the copy is current.
- */
-export function logoCssUrl(): string {
-  const oneLine = logoSvg().replace(/>\s+</g, "><").trim();
-  return `url("data:image/svg+xml,${encodeURIComponent(oneLine)}")`;
-}
-
-/**
  * The logo for Obsidian's `addIcon`: the inside of an SVG with viewBox 0 0 100 100.
  * The logo fills its square canvas, so the canvas is scaled to 100.
  */

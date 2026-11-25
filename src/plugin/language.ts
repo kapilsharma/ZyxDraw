@@ -8,8 +8,10 @@ const BUILTINS = Object.keys(SHAPES);
 /** `name is ...`: what can follow `is`. */
 const DEFINE_KEYWORDS = ["style", "shape", "clip", "gradient"];
 /** Lines without a name. */
-const LINE_KEYWORDS = ["canvas", "import"];
+const LINE_KEYWORDS = ["canvas", "import", "export"];
 const NAME = "[A-Za-z_][\\w-]*";
+/** One name in an import, maybe renamed: `lambda` or `lambda as ly`. */
+const IMPORTED = `${NAME}(?:\\s+as\\s+${NAME})?`;
 
 // ---- autocomplete ---------------------------------------------------------------------------
 
@@ -31,8 +33,12 @@ function namesIn(doc: string) {
     else if (m[2] === "gradient") gradients.add(m[1]);
     else shapes.add(m[1]);
   }
+  // `import a, b as c from ...`: the names used in this file (after `as` when renamed).
   for (const m of doc.matchAll(/^[ \t]*import[ \t]+([\w, \t-]+?)[ \t]+from\b/gm)) {
-    for (const n of m[1].split(",")) if (n.trim()) defs.add(n.trim());
+    for (const n of m[1].split(",")) {
+      const used = n.trim().split(/\s+as\s+/).pop();
+      if (used) defs.add(used);
+    }
   }
   return { shapes: [...shapes], styles: [...styles], defs: [...defs], clips: [...clips], gradients: [...gradients] };
 }
@@ -93,6 +99,18 @@ function complete(ctx: CompletionContext): CompletionResult | null {
     if (line.trim() === "") {
       // Start of a line: a new name (nothing to suggest), an unnamed shape, `canvas` or `import`.
       options = [...types, ...LINE_KEYWORDS.map((label) => ({ label, type: "keyword" }))];
+    } else if (/^\s*export\s+(?:[\w-]+\s*,\s*)*$/.test(line)) {
+      // `export |`: the names this file defines or imports.
+      const all = new Set([...names.defs, ...names.styles, ...names.gradients, ...names.clips]);
+      options = [...all].map((label) => ({ label, type: "variable" }));
+    } else if (/^\s*import\s+\*\s+$/.test(line)) {
+      options = [{ label: "from", type: "keyword", apply: "from " }];
+    } else if (new RegExp(`^\\s*import\\s+${IMPORTED}(?:\\s*,\\s*${IMPORTED})*\\s+$`).test(line)) {
+      // `import a |`: `from`, or `as` to give it another name.
+      options = [
+        { label: "from", type: "keyword", apply: "from " },
+        { label: "as", type: "keyword", detail: "new name", apply: "as " },
+      ];
     } else if (new RegExp(`^\\s*${NAME}\\s+is\\s+$`).test(line)) {
       // `box is |`: the type, or a definition.
       options = [...types, ...DEFINE_KEYWORDS.map((label) => ({ label, type: "keyword", detail: "definition" }))];

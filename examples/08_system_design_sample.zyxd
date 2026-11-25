@@ -2,9 +2,9 @@
 # Request path: browser -> API gateway -> one of three app servers -> DB proxy -> database.
 # The app servers share a Redis cache.
 #
-# `service` and `database` come from the library in shapes/system.zyxd;
+# `service` and `database` come from the library in shapes/system.zyxdl;
 # `browser` and `cache` are defined in this file.
-import service, database from shapes/system
+import service, database from shapes.system
 
 canvas(infinite)
 

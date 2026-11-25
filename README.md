@@ -14,7 +14,7 @@ It shows the text and the drawing side by side, with the attributes of the selec
 
 ## Active development as on November 2026
 
-> Do you feel something will make your work easier?
+> Do you feel something that will make your work easier?
 >
 > Open an issue in GutHub, I'm actively working to add more features in Zyx Draw.
 
@@ -112,7 +112,7 @@ primary is style(fill=yellow, stroke=red, stroke-width=2)
 
 The syntax is `name is type`. Here, `primary` is just a name that we want to refer to later, while applying the style.
 
-`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas`, `import` and `layer`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either.
+`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas`, `import`, `export` and `layer`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either.
 
 After style, we have `()`. Within it, we have attributes, which are in the format `attribute=value`. There is a huge list of attributes, which we will see later in detail. They are also listed in the **Attributes**, in the bottom panel under the drawing area.
 
@@ -257,7 +257,7 @@ The plugin, in its first version, comes with a lot of useful commands, and the l
   - Text and drawing side by side (left panel and drawing area)
   - Text only (left panel)
   - Drawing only (drawing area)
-- **Go to definition:** `Ctrl` + click (`Cmd` on Mac) on a name in the text: a custom shape (opens its library in a new tab), an import path, a shape in `right-of=`, `from=`, ..., a style, a clip or a gradient. Hold `Ctrl` to see what is clickable. Also the command **ZyxDraw: Go to definition** (for the name at the cursor).
+- **Go to definition:** `Ctrl` + click (`Cmd` on Mac) on a name in the text: a custom shape (opens its library in a new tab), a library name in an import, an imported or exported name, a shape in `right-of=`, `from=`, ..., a style, a clip or a gradient. Hold `Ctrl` to see what is clickable. Also the command **ZyxDraw: Go to definition** (for the name at the cursor).
 - **Hide shapes while you work:** click the eye next to a shape's line number in the text to hide it (it writes `display=none`); click again to show it. The lines of a hidden shape are faded. Hidden shapes keep their place, so shapes and lines attached to them do not move. See [Hiding shapes](#hiding-shapes).
 - **Comment lines:** `Ctrl+/` (`Cmd+/` on Mac) comments or uncomments the selected lines in the text.
 - **In notes:** a fenced code block with the language `zyxd`, or an embed `![[diagram.zyxd]]`, shows the drawing.
@@ -304,7 +304,7 @@ Drawn in the editor first, later adjusted in the text
 Code for this
 
 ```
-import service, database, queue from shapes/system
+import service, database, queue from shapes.system
 
 canvas(width=720, height=380, background=white)
 
@@ -322,9 +322,11 @@ line(from=api, to=events, arrow=end, label="publish")
 line(from=events, to=mailer, arrow=end, label="consume")
 ```
 
-It also uses another file, imported from `shapes/system`, with the following code
+It also uses a library, `shapes/system.zyxdl`, imported as `shapes.system`, with the following code. Only the three shapes are exported; the style `label` stays inside the library.
 
 ```
+export service, database, queue
+
 label is style(font-size=14, fill=#1a1a1a)
 
 service is shape(label, width=140, height=60, color=#dbe8fb):
@@ -513,9 +515,34 @@ orders is database(label="Orders", right-of=users 40, y=20, color=orange)
 - A parameter without a default is required.
 - Numbers can be calculations using the parameters: `rx=width / 2`, `y=(height - 20) / 2`. Put spaces around `-` (names may contain `-`).
 - Instances take their parameters plus position and style attributes.
-- Put shapes in a `.zyxd` file and import them: `import database, queue from shapes/system.zyxd`. Paths are relative to the drawing, then from the vault root. `.zyxd` may be omitted.
 - Inner parts of a shape from the same file can be referenced (`users.body`). Imported shapes are sealed.
+
+To use shapes in many drawings, put them in a **library**: a `.zyxdl` file. A library holds custom shapes, styles, gradients and clips, and draws nothing. A drawing (`.zyxd`) cannot be imported.
+
+```text
+# shapes/system.zyxdl
+label is style(font-size=14)
+
+service is shape(label, width=140, height=60):
+  body is rect(width=100%, height=100%, radius=8)
+  name is text(label, x=50%, y=20, align=middle, style=label)
+
+export service
+```
+
+```text
+# A drawing
+import service from shapes.system
+import * from shapes.system
+import service as box from shapes.system
+```
+
+- The **library name** is the file's path with dots between folders: `shapes.system` is `shapes/system.zyxdl`. No `/`, no extension. Folder and file names of libraries use letters, digits, `-` and `_` (no dots), and upper and lower case count.
+- An import looks next to the drawing first, then in the **library folder** from the settings (`ZyxDrawLibrary` by default).
+- `export a, b` lists what other files can import. Without it, everything is exported. A library can export what it imported.
+- `import *` brings in everything exported. `as` gives an imported name another name in this file.
 - Later imports override earlier ones, and a local definition always wins. Circular imports and definitions are reported.
+- Open a library to edit its text. To see its shapes, import them in a drawing: it is redrawn each time the library is saved.
 
 ## Export
 
@@ -542,6 +569,7 @@ Nothing is read in the background, and nothing leaves your device.
 - Show grid, and show mouse coordinates (also toolbar buttons and the commands **Toggle grid** / **Toggle mouse coordinates**).
 - Unit for new positions and sizes written by edits in the drawing area (percent or pixels).
 - PNG scale and background.
+- Library folder: where libraries shared by many drawings are kept (default `ZyxDrawLibrary`). An import looks next to the drawing first, then here.
 
 In Obsidian 1.13 or later, these settings also show up in the settings search.
 

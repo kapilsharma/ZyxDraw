@@ -141,7 +141,7 @@ describe("names", () => {
   });
 
   it("reports a missing import file", () => {
-    expect(codes("import facebook from icons.zyxd")).toContain(Code.ImportNotFound);
+    expect(codes("import facebook from icons")).toContain(Code.ImportNotFound);
   });
 });
 
@@ -158,7 +158,7 @@ describe("clip", () => {
 
   it("lets library shapes use their own file's clips", () => {
     const lib = "half is clip():\n  rect(width=50%, height=100%)\ns is shape():\n  r is rect(width=10, height=10, clip-path=half)\n";
-    const { svg, diagnostics } = compile("import s from lib.zyxd\none is s()", { path: "main.zyxd", libraries: new Map([["lib.zyxd", lib]]) });
+    const { svg, diagnostics } = compile("import s from lib\none is s()", { path: "main.zyxd", libraries: new Map([["lib.zyxdl", lib]]) });
     expect(diagnostics).toEqual([]);
     expect(elements(svg, "clipPath")).toHaveLength(1);
     expect(elements(svg, "rect")[0]).toMatchObject({ width: "5" });

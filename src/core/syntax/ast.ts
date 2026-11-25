@@ -32,7 +32,16 @@ export interface Attr {
   valueRange: SourceRange;
 }
 
-export type StatementKind = "shape" | "style" | "canvas" | "import" | "shapeDef" | "clipDef" | "gradientDef";
+export type StatementKind = "shape" | "style" | "canvas" | "import" | "export" | "shapeDef" | "clipDef" | "gradientDef";
+
+/** A name in `import a, b as c from ...` or `export a, b`. */
+export interface ImportName {
+  name: string;
+  range: SourceRange;
+  /** `b as c`: the name used in the importing file. */
+  alias?: string;
+  aliasRange?: SourceRange;
+}
 
 export interface Statement {
   kind: StatementKind;
@@ -55,10 +64,15 @@ export interface Statement {
   openParen?: number;
   closeParen?: number;
   indent: number;
-  /** Only for `import a, b from file`. */
-  importNames?: { name: string; range: SourceRange }[];
+  /** Only for `import a, b as c from library`. Empty for `import *`. */
+  importNames?: ImportName[];
+  /** `import * from library`. */
+  importAll?: boolean;
+  /** The library name as written, such as `shapes.system`. May have a problem (reported). */
   importPath?: string;
   importPathRange?: SourceRange;
+  /** Only for `export a, b`. */
+  exportNames?: ImportName[];
 }
 
 export interface SyntaxTree {

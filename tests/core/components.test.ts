@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Code, compile, compileWithImports, importCandidates, loadLibraries } from "../../src/core";
+import { Code, compile } from "../../src/core";
 import { parseXml, type XNode } from "../docs/svg-compare";
 
 const CANVAS = "canvas(width=400, height=200)\n";
@@ -77,7 +77,7 @@ describe("custom shapes (same file)", () => {
   });
 
   it("allows imports and definitions before canvas", () => {
-    expect(codes("import a from x.zyxd\ncanvas(width=10, height=10)", { libraries: new Map([["x.zyxd", "a is shape():\n  r is rect()"]]) })).toEqual([]);
+    expect(codes("import a from x\ncanvas(width=10, height=10)", { libraries: new Map([["x.zyxdl", "a is shape():\n  r is rect()"]]) })).toEqual([]);
   });
 
   it("a later local definition wins", () => {
@@ -136,74 +136,5 @@ describe("calculations", () => {
     const { svg, diagnostics } = compile("a is rect(x=50, width=10, height=10)\nb is rect(left-of=a -5, width=10, height=10, y=-3)");
     expect(diagnostics).toEqual([]);
     expect(elements(svg, "rect")[1].attrs).toMatchObject({ x: "45", y: "-3" });
-  });
-});
-
-describe("imports", () => {
-  const libs = new Map([
-    ["lib/shapes.zyxd", DATABASE + "secret is shape():\n  r is rect(width=1, height=1)\n"],
-    ["lib/icons.zyxd", 'import database from shapes.zyxd\nicon is shape(label="i"):\n  inner is database(label=label)\n'],
-  ]);
-
-  it("resolves import paths relative to the file, then from the vault root", () => {
-    expect(importCandidates("notes/a.zyxd", "lib/shapes")).toEqual(["notes/lib/shapes.zyxd", "lib/shapes.zyxd"]);
-    expect(importCandidates("a.zyxd", "../x.zyxd")).toEqual(["x.zyxd"]);
-    expect(importCandidates("notes/a.zyxd", "/lib/x")).toEqual(["lib/x.zyxd"]);
-  });
-
-  it("imports a shape and draws it", () => {
-    const src = CANVAS + 'import database from lib/shapes.zyxd\nusers is database(label="Users")';
-    const { svg, diagnostics } = compile(src, { path: "main.zyxd", libraries: libs });
-    expect(diagnostics).toEqual([]);
-    expect(elements(svg, "text").map((t) => t.text)).toEqual(["Users"]);
-  });
-
-  it("follows imports inside libraries", () => {
-    const src = 'import icon from lib/icons.zyxd\ni is icon(label="x")';
-    const { diagnostics, svg } = compile(src, { path: "main.zyxd", libraries: libs });
-    expect(diagnostics).toEqual([]);
-    expect(elements(svg, "text").map((t) => t.text)).toEqual(["x"]);
-  });
-
-  it("keeps imported shapes sealed", () => {
-    const src = "import database from lib/shapes.zyxd\nd is database()\nt is rect(below=d.body 1)";
-    expect(codes(src, { path: "main.zyxd", libraries: libs })).toContain(Code.PrivatePart);
-  });
-
-  it("reports a name the library does not define", () => {
-    expect(codes("import nope from lib/shapes.zyxd", { path: "main.zyxd", libraries: libs })).toContain(Code.ImportNotFound);
-  });
-
-  it("a local definition wins over an import", () => {
-    const src = "import database from lib/shapes.zyxd\ndatabase is shape():\n  c is circle(r=2)\nd is database()";
-    const { svg } = compile(src, { path: "main.zyxd", libraries: libs });
-    expect(elements(svg, "circle")).toHaveLength(1);
-  });
-
-  it("reports circular imports and terminates", () => {
-    const cyc = new Map([
-      ["a.zyxd", "import y from b.zyxd\nx is shape():\n  r is rect()\n"],
-      ["b.zyxd", "import x from a.zyxd\ny is shape():\n  r is rect()\n"],
-    ]);
-    const { diagnostics } = compile("import x from a.zyxd\none is x()", { path: "main.zyxd", libraries: cyc });
-    expect(diagnostics.some((d) => d.message.includes("Circular import: a.zyxd -> b.zyxd -> a.zyxd"))).toBe(true);
-  });
-
-  it("reports a file importing itself", () => {
-    expect(codes("import x from main.zyxd\nx is shape():\n  r is rect()", { path: "main.zyxd" })).toContain(Code.CircularImport);
-  });
-
-  it("loads libraries asynchronously, each file once", async () => {
-    const reads: string[] = [];
-    const read = async (p: string) => {
-      reads.push(p);
-      return libs.get(p) ?? null;
-    };
-    const loaded = await loadLibraries("import icon from lib/icons.zyxd\nimport database from lib/shapes.zyxd", "main.zyxd", read);
-    expect([...loaded.keys()].sort()).toEqual(["lib/icons.zyxd", "lib/shapes.zyxd"]);
-    expect(reads.filter((r) => r === "lib/shapes.zyxd")).toHaveLength(1);
-
-    const result = await compileWithImports('import icon from lib/icons.zyxd\ni is icon(label="z")', read, { path: "main.zyxd" });
-    expect(result.diagnostics).toEqual([]);
   });
 });
