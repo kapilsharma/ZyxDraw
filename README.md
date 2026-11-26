@@ -515,6 +515,7 @@ orders is database(label="Orders", right-of=users 40, y=20, color=orange)
 
 - A parameter without a default is required.
 - Numbers can be calculations using the parameters: `rx=width / 2`, `y=(height - 20) / 2`. Put spaces around `-` (names may contain `-`).
+- In `points` and `d`, put a calculation in `( )`: `points="0,(height) (aim),(height + length) 20,(height)"`. The exported SVG gets plain numbers.
 - Instances take their parameters plus position and style attributes.
 - Inner parts of a shape from the same file can be referenced (`users.body`). Imported shapes are sealed.
 
@@ -553,6 +554,19 @@ import service as box from shapes.system
   - Click a shape, or put the text cursor on its line, to try other values in the **Attributes**: they are written to `preview()`, never to the shape itself. The first value for a shape adds its line (and the `preview():` block when there is none).
   - The eye next to a `name is shape(...):` line hides that shape in the drawing area only. The eye next to a line in `preview()` writes `display=none` there.
   - Shapes cannot be moved or added in a library's drawing area, and there are no Layers.
+
+#### Ready-made libraries
+
+The [library](library/) folder of this repository has libraries you can use, such as `shapes.speech`: speech bubbles `say`, `think` and `whisper`, whose tail points at any spot (`tip-x` and `tip-y`, measured from the middle of the bubble), plus `shout` and `caption`; `text-size` sets the size of the words. [examples/17_speech_bubbles.zyxd](examples/17_speech_bubbles.zyxd) is a short comic made with them. For now, copy a `.zyxdl` file into your library folder, keeping its folders (`shapes/speech.zyxdl`), then import its shapes:
+
+```text
+import say, think from shapes.speech
+
+hello is say(label="Hello!", x=20, y=20, tip-x=-60, tip-y=70)
+idea is think(label="What if...", x=220, y=20)
+```
+
+[library/README.md](library/README.md) lists every library and explains how to contribute one. Installing libraries from inside ZyxDraw is planned.
 
 ## Export
 

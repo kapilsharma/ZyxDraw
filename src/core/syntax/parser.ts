@@ -416,6 +416,18 @@ function parseValues(tokens: Token[], source: string, diags: Diagnostics): Value
   return values;
 }
 
+/**
+ * One calculation written on its own, such as the inside of a `( )` group in `points` or `d`.
+ * Token offsets are relative to `text`.
+ */
+export function parseCalculation(text: string): { ok: true; expr: Expr } | { ok: false; error: string } {
+  const diags = new Diagnostics();
+  const { tokens } = tokenize(text, diags);
+  if (tokens.length === 0) return { ok: false, error: "Empty `( )`: write a calculation inside, like `(width - 10)`" };
+  const expr = diags.list.length === 0 ? parseExpr(tokens, diags) : null;
+  return expr ? { ok: true, expr } : { ok: false, error: diags.list[0]?.message ?? "Not a calculation" };
+}
+
 /** Calculation: `+ -` then `* /`, unary minus, parentheses, numbers and names. */
 function parseExpr(tokens: Token[], diags: Diagnostics): Expr | null {
   let i = 0;

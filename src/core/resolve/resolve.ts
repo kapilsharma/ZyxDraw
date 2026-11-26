@@ -2,7 +2,8 @@ import { GRADIENT, isShapeType, POSITION_ATTRS, SHAPES, STOP, type AttrSpec, typ
 import { Code, Diagnostics, ScopedDiagnostics } from "../diagnostics";
 import { parsePath, parsePoints, type PathCommand } from "../geometry";
 import type { Attr, Expr, SourceRange, Statement, SyntaxTree, Value } from "../syntax/ast";
-import { parse } from "../syntax/parser";
+import { parse, parseCalculation } from "../syntax/parser";
+import { tokenize } from "../syntax/tokenizer";
 import { drawingPath, importCandidates, isLibraryPath } from "./library";
 
 const KEYWORDS = new Set(["style", "canvas", "shape", "import", "export", "clip", "gradient", "layer"]);
@@ -712,10 +713,21 @@ function expandInstance(stmt: Statement, def: ShapeDef, parent: Shape | null, na
       const arg = values.get(v.value)!;
       return styleList && !arg.every((x) => x.kind === "ident") ? [v] : arg;
     });
+  // Inside the `( )` groups of `points` and `d`, a parameter becomes its number.
+  const numberOf = (name: string): number | undefined => {
+    const arg = values.get(name);
+    if (!arg || arg.length !== 1) return undefined;
+    if (arg[0].kind === "number" && arg[0].unit !== "%") return arg[0].value;
+    if (arg[0].kind !== "expr") return undefined;
+    const r = evaluate(arg[0].node);
+    return r.ok ? r.value : undefined;
+  };
+  const substGeometry = (vals: Value[]): Value[] =>
+    vals.map((v) => (v.kind === "string" && hasCalculations(v.value) ? { ...v, value: substituteInGroups(v.value, numberOf) } : v));
   const clone = (s: Statement): Statement => ({
     ...s,
     args: s.args.map((a) => subst(a)),
-    attrs: s.attrs.map((a) => ({ ...a, values: subst(a.values, a.name === "style") })),
+    attrs: s.attrs.map((a) => ({ ...a, values: GEOMETRY_TEXT.has(a.name) ? substGeometry(a.values) : subst(a.values, a.name === "style") })),
     children: s.children.map(clone),
   });
 
@@ -993,6 +1005,77 @@ export function evaluate(e: Expr): Evaluated {
   }
 }
 
+// ---- calculations inside `points` and `d` ----------------------------------------------------
+// `points="0,0 (tail + 6),(height + 22) 22,0"`: each outermost `( )` group is a calculation. The
+// result replaces the group, so the SVG gets plain numbers.
+
+/** Attributes whose text may hold `( )` calculations. */
+const GEOMETRY_TEXT = new Set(["points", "d"]);
+
+/** The outermost `( )` groups of `text`, as [start, end) including the brackets. */
+function calcGroups(text: string): { ok: true; groups: [number, number][] } | { ok: false; error: string } {
+  const groups: [number, number][] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "(") {
+      if (depth++ === 0) start = i;
+    } else if (text[i] === ")") {
+      if (depth === 0) return { ok: false, error: "A `)` has no matching `(`" };
+      if (--depth === 0) groups.push([start, i + 1]);
+    }
+  }
+  return depth === 0 ? { ok: true, groups } : { ok: false, error: "Missing `)` in the calculation" };
+}
+
+/** Whether a `points` / `d` text holds calculations. */
+export function hasCalculations(text: string): boolean {
+  return text.includes("(") || text.includes(")");
+}
+
+const plain = (n: number): string => String(Number(n.toFixed(6)));
+
+/** Works out every `( )` group of a `points` / `d` text. Names left in a group are errors. */
+export function expandCalculations(text: string): { ok: true; value: string } | { ok: false; error: string } {
+  const found = calcGroups(text);
+  if (!found.ok) return found;
+  let out = "";
+  let at = 0;
+  for (const [start, end] of found.groups) {
+    const parsed = parseCalculation(text.slice(start + 1, end - 1));
+    if (!parsed.ok) return parsed;
+    const r = evaluate(parsed.expr);
+    if (!r.ok) return r;
+    // Spaces keep the number apart from its neighbours: `M(a)(b)` becomes `M 1 2 `.
+    out += `${text.slice(at, start)} ${plain(r.value)} `;
+    at = end;
+  }
+  return { ok: true, value: out + text.slice(at) };
+}
+
+/** Puts a custom shape's parameter values into the `( )` groups of a `points` / `d` text. */
+function substituteInGroups(text: string, valueOf: (name: string) => number | undefined): string {
+  const found = calcGroups(text);
+  if (!found.ok) return text; // reported when the shape is resolved
+  let out = "";
+  let at = 0;
+  for (const [start, end] of found.groups) {
+    const inner = text.slice(start + 1, end - 1);
+    const { tokens } = tokenize(inner, new Diagnostics());
+    let rewritten = "";
+    let pos = 0;
+    for (const t of tokens) {
+      const v = t.kind === "ident" ? valueOf(t.text) : undefined;
+      if (v === undefined) continue;
+      rewritten += `${inner.slice(pos, t.start)}${v < 0 ? `(${plain(v)})` : plain(v)}`;
+      pos = t.end;
+    }
+    out += `${text.slice(at, start)}(${rewritten}${inner.slice(pos)})`;
+    at = end;
+  }
+  return out + text.slice(at);
+}
+
 /** Resolves the shapes of a clip block once. Clip shapes cannot be clipped themselves. */
 function resolveClip(def: ClipDef, usingCtx: Ctx, usedAt: SourceRange): Shape[] | null {
   if (def.shapes) return def.shapes;
@@ -1073,7 +1156,12 @@ function checkShape(shape: Shape, stmt: Statement, own: Map<string, RAttr>, diag
         diags.error(Code.MissingRequired, "`points` is missing", stmt.range);
         return false;
       }
-      const parsed = parsePoints(pts, type === "polygon" ? 3 : 2);
+      const expanded = hasCalculations(pts) ? expandCalculations(pts) : { ok: true as const, value: pts };
+      if (!expanded.ok) {
+        diags.error(Code.InvalidValue, `In \`points\`: ${expanded.error}`, attrs.get("points")!.range);
+        return false;
+      }
+      const parsed = parsePoints(expanded.value, type === "polygon" ? 3 : 2);
       if (!parsed.ok) {
         diags.error(Code.InvalidGeometry, parsed.error, attrs.get("points")!.range);
         return false;
@@ -1088,7 +1176,12 @@ function checkShape(shape: Shape, stmt: Statement, own: Map<string, RAttr>, diag
         diags.error(Code.MissingRequired, "`d` (path data) is missing", stmt.range);
         return false;
       }
-      const parsed = parsePath(d);
+      const expanded = hasCalculations(d) ? expandCalculations(d) : { ok: true as const, value: d };
+      if (!expanded.ok) {
+        diags.error(Code.InvalidValue, `In \`d\`: ${expanded.error}`, attrs.get("d")!.range);
+        return false;
+      }
+      const parsed = parsePath(expanded.value);
       if (!parsed.ok) {
         diags.error(Code.InvalidGeometry, parsed.error, attrs.get("d")!.range);
         return false;

@@ -1,0 +1,39 @@
+# A three-panel comic using the speech bubbles from the `shapes.speech` library.
+# The library is in the repo's `library/` folder: copy `shapes/speech.zyxdl` into the
+# library folder from the settings (keeping its folder) to use it.
+import say, think, whisper, shout, caption from shapes.speech
+
+canvas(width=860, height=360, background=white)
+
+frame is style(fill=#fafafa, stroke=#333333, stroke-width=3)
+
+# A simple person: a head and a body. `color` is the shirt.
+person is shape(color=steelblue):
+  body is rect(x=0, y=34, width=40, height=50, radius=12, fill=color, stroke=#333333, stroke-width=2)
+  head is circle(x=4, y=0, r=16, fill=#f2d3b3, stroke=#333333, stroke-width=2)
+
+# ---- Panel 1: the question ----
+panel1 is group(x=20, y=20):
+  back is rect(width=260, height=320, style=frame)
+  when is caption(label="Monday, 9 am", x=10, y=10, width=130, height=34)
+  ana is person(x=40, y=220, color=#e07a5f)
+  ben is person(x=180, y=220)
+  ask is say(label="Coffee?", x=20, y=70, width=110, height=56, tip-x=-17, tip-y=98)
+  yes is think(label="Finally!", x=130, y=110, width=110, height=60, tip-x=18, tip-y=65)
+
+# ---- Panel 2: the surprise ----
+panel2 is group(x=300, y=20):
+  back is rect(width=260, height=320, style=frame)
+  boom is shout(label="BUILD FAILED!", x=34, y=12, width=192, height=106, text-size=17)
+  ana is person(x=40, y=220, color=#e07a5f)
+  ben is person(x=180, y=220)
+  aside is whisper(label="not again...", x=110, y=140, width=120, height=44, tip-x=30, tip-y=50)
+
+# ---- Panel 3: the fix ----
+panel3 is group(x=580, y=20):
+  back is rect(width=260, height=320, style=frame)
+  ana is person(x=30, y=220, color=#e07a5f)
+  ben is person(x=190, y=220)
+  later is caption(label="Ten minutes later", x=10, y=10, width=150, height=34)
+  found is say(label="Found it: a typo.", x=20, y=150, width=150, height=50, tip-x=105, tip-y=47)
+  coffee is say(label="Coffee now?", x=85, y=236, width=100, height=40, tip-x=-66, tip-y=-8)

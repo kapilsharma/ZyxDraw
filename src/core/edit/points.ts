@@ -74,6 +74,9 @@ const ARGS: Record<string, number> = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4,
 /** Shapes whose points can be dragged (a line: its two ends, unless it connects shapes). */
 export function hasPoints(shape: Shape): boolean {
   if (shape.generated || shape.instanceOf) return false;
+  // Points written as calculations (`(width - 10)`) are kept: dragging would replace them.
+  const geometry = shape.attrs.get(shape.type === "path" ? "d" : "points");
+  if (geometry?.value.t === "str" && geometry.value.v.includes("(")) return false;
   if (shape.type === "line") return !shape.attrs.has("from") && !shape.attrs.has("to");
   return shape.type === "path" || shape.type === "polygon" || shape.type === "polyline";
 }
