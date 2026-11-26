@@ -16,6 +16,7 @@ import {
   pointSourceRange,
   importCandidates,
   layers,
+  galleryLayers,
   parse,
   toggleHidden,
   nameDefinition,
@@ -102,6 +103,12 @@ export class ZyxView extends TextFileView {
   private pending: { source: string; promise: Promise<CompileResult> } | null = null;
   private resolved: { source: string; result: CompileResult } | null = null;
   private renderVersion = 0;
+  /** Library (issue #25): custom shapes hidden in the gallery with their eye. Not saved. */
+  private readonly galleryHidden = new Set<string>();
+  /** Library: the width the gallery's columns were fitted to. */
+  private galleryWidth = 0;
+  /** The text cursor is selecting a shape: do not move the cursor back to it. */
+  private selectingFromText = false;
 
   private readonly renderSoon = debounce(() => void this.renderPreview(), 150, true);
 
@@ -145,7 +152,7 @@ export class ZyxView extends TextFileView {
       selectionChanged: (path) => {
         this.attributes?.show(path);
         this.followLayer(path);
-        if (path) this.followSelection(path);
+        if (path && !this.selectingFromText) this.followSelection(path);
       },
       guideOn: (guide) => this.plugin.guideOn(guide),
       toggleGuide: (guide) => this.plugin.setGuide(guide, !this.plugin.guideOn(guide)),
@@ -178,6 +185,11 @@ export class ZyxView extends TextFileView {
     });
     this.addDrawingHotkeys();
     this.addSplitters(leftPanel, center);
+    const refit = debounce(() => {
+      const width = this.drawing?.stageWidth() ?? 0;
+      if (this.isLibrary() && width > 0 && Math.abs(width - this.galleryWidth) > 40) this.refresh();
+    }, 300, true);
+    new ResizeObserver(refit).observe(center);
     this.editor = new EditorView({ parent: leftPanel, state: this.createState(this.text) });
     this.addModeButtons();
     this.setMode(this.mode);
@@ -218,6 +230,13 @@ export class ZyxView extends TextFileView {
 
   /** An eye was clicked: hide or show the shape, as one text edit. */
   private toggleLayer(path: string): void {
+    if (path.startsWith("def:")) {
+      // A library's definition (issue #25): shown or hidden in the gallery only, no text change.
+      const name = path.slice(4);
+      if (!this.galleryHidden.delete(name)) this.galleryHidden.add(name);
+      this.refresh();
+      return;
+    }
     const cur = this.current();
     if (!cur) return; // a newer text is still compiling: the eyes will be redrawn for it
     const { tree, scene, diagnostics } = cur.result;
@@ -346,9 +365,11 @@ export class ZyxView extends TextFileView {
 
   setLayersVisible(visible: boolean): void {
     this.layersVisible = visible;
-    this.rightPanel?.toggleClass("is-hidden", !visible);
-    this.rightSplitter?.toggleClass("is-hidden", !visible);
-    this.layersView?.setShown(visible);
+    // A library has no Layers: the panel stays hidden, and the setting is kept for drawings.
+    const shown = visible && !this.isLibrary();
+    this.rightPanel?.toggleClass("is-hidden", !shown);
+    this.rightSplitter?.toggleClass("is-hidden", !shown);
+    this.layersView?.setShown(shown);
     this.layersButton?.toggleClass("is-active", visible);
     this.layersButton?.setAttribute("aria-pressed", String(visible));
     if (this.plugin.settings.showLayers !== visible) {
@@ -473,8 +494,9 @@ export class ZyxView extends TextFileView {
       if (clear) {
         // A different file was loaded: fresh state, so undo history does not leak between files.
         this.editor.setState(this.createState(data));
-        // A library draws nothing: it opens as text only (the view button still switches).
-        if (this.file?.extension === "zyxdl" && this.mode !== "source") this.setMode("source");
+        // A library shows its shapes, which can be tried but not edited in the drawing area (issue #24).
+        this.galleryHidden.clear();
+        this.setLibraryMode(this.isLibrary());
       } else if (this.editor.state.doc.toString() !== data) {
         // The file changed outside this view (another pane, sync): replace the text.
         this.applyingFileText = true;
@@ -510,10 +532,14 @@ export class ZyxView extends TextFileView {
   /** Compiles once per text version; shared by the drawing and the error underlines. */
   private compile(source: string): Promise<CompileResult> {
     if (this.pending?.source !== source) {
+      const library = this.isLibrary();
+      if (library) this.galleryWidth = this.drawing?.stageWidth() || this.galleryWidth || 0;
       const promise = compileInVault(this.app, source, this.file?.path ?? "", {
         measurer: this.measurer ?? undefined,
         metadata: true,
         libraryFolder: this.plugin.settings.libraryFolder,
+        galleryWidth: library && this.galleryWidth > 0 ? this.galleryWidth : undefined,
+        galleryHidden: library ? [...this.galleryHidden] : undefined,
       }).then((result) => {
         if (this.pending?.promise === promise) this.resolved = { source, result };
         return result;
@@ -541,7 +567,16 @@ export class ZyxView extends TextFileView {
     }
     if (version !== this.renderVersion || !this.drawing || !this.problemsEl) return;
     this.drawing.show(result.svg, result.scene.frame.infinite ?? false);
-    if (this.editor && this.editor.state.doc.toString() === source) this.editor.dispatch({ effects: setLayers.of(layers(result.scene)) });
+    const gallery = result.scene.gallery;
+    this.drawing.setMessage(
+      gallery && gallery.cells.length === 0
+        ? gallery.defs.length > 0
+          ? "Every custom shape is hidden: click an eye next to a definition to show it."
+          : "This library has no custom shapes. Its styles, gradients and clips are used by importing them."
+        : null,
+    );
+    const eyes = gallery ? galleryLayers(result.scene) : layers(result.scene);
+    if (this.editor && this.editor.state.doc.toString() === source) this.editor.dispatch({ effects: setLayers.of(eyes) });
     this.attributes?.refresh();
     // A deleted or renamed layer is no longer active.
     if (this.activeLayer && !findShape(result.scene, this.activeLayer)?.layer) this.activeLayer = null;
@@ -566,11 +601,12 @@ export class ZyxView extends TextFileView {
         this.wrap.of(this.plugin.settings.wrapText ? EditorView.lineWrapping : []),
         layerTracking(),
         this.eyes.of(this.eyeExtension(this.plugin.settings.showLayerToggles)),
-        ...zyxLanguageSupport(),
+        ...zyxLanguageSupport({ library: this.isLibrary() }),
         definitionLinks((link) => void this.goToDefinition(link)),
         lintGutter(),
         linter((view) => this.lint(view), { delay: 300 }),
         EditorView.updateListener.of((update) => {
+          if (update.selectionSet && !update.docChanged && this.isLibrary()) this.selectAtCursor(update.state.selection.main.head);
           if (!update.docChanged || this.applyingFileText) return;
           this.text = update.state.doc.toString();
           this.requestSave();
@@ -603,6 +639,41 @@ export class ZyxView extends TextFileView {
       changes: edit.edits.map((e) => ({ from: e.from, to: e.to, insert: e.insert })),
       annotations: Transaction.userEvent.of("zyxdraw.canvas"),
     });
+  }
+
+  // ---- libraries (issues #24, #25) ------------------------------------------------------
+
+  isLibrary(): boolean {
+    return this.file?.extension === "zyxdl";
+  }
+
+  /** A library: no Layers (nothing to layer), and a drawing area that selects but does not edit. */
+  private setLibraryMode(on: boolean): void {
+    this.contentEl.toggleClass("is-library", on);
+    this.drawing?.setLibrary(on);
+    this.drawing?.setMessage(null);
+    this.layersButton?.toggle(!on);
+    const shown = this.layersVisible && !on;
+    this.rightPanel?.toggleClass("is-hidden", !shown);
+    this.rightSplitter?.toggleClass("is-hidden", !shown);
+    this.layersView?.setShown(shown);
+  }
+
+  /** Library: the text cursor is on a line of `preview()` or in a definition: select that cell. */
+  private selectAtCursor(pos: number): void {
+    const cells = this.current()?.result.scene.gallery?.cells;
+    if (!cells) return;
+    const inside = (r: SourceRange) => pos >= r.start && pos <= r.end;
+    const line = cells.find((c) => !c.shape.preview?.placeholder && inside(c.shape.source.range));
+    const def = line ? undefined : this.current()?.result.scene.gallery?.defs.find((d) => inside(d.blockRange));
+    const cell = line ?? (def && cells.find((c) => c.shape.preview?.def === def.name));
+    if (!cell || cell.shape.path === this.drawing?.selection) return;
+    this.selectingFromText = true;
+    try {
+      this.drawing?.select(cell.shape.path);
+    } finally {
+      this.selectingFromText = false;
+    }
   }
 
   private revealInSource(path: string): void {

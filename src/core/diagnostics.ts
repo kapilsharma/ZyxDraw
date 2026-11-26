@@ -64,6 +64,8 @@ export const Code = {
   LibraryDraws: "ZYX125",
   /** `export` in a drawing, or of a name the library does not have. */
   Export: "ZYX126",
+  /** `preview():` in a drawing, twice, with a built-in shape or a position inside (issue #23). */
+  Preview: "ZYX127",
 
   UnknownShape: "ZYX201",
   PositionConflict: "ZYX202",

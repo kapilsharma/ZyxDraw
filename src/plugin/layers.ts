@@ -28,12 +28,14 @@ class EyeMarker extends GutterMarker {
   constructor(
     readonly hidden: boolean,
     readonly byGroup: boolean,
+    /** A library's definition (issue #25): hidden in the drawing area only, the text is not changed. */
+    readonly viewOnly = false,
   ) {
     super();
   }
 
   override eq(other: GutterMarker): boolean {
-    return other instanceof EyeMarker && other.hidden === this.hidden && other.byGroup === this.byGroup;
+    return other instanceof EyeMarker && other.hidden === this.hidden && other.byGroup === this.byGroup && other.viewOnly === this.viewOnly;
   }
 
   override toDOM(): Node {
@@ -41,10 +43,16 @@ class EyeMarker extends GutterMarker {
     el.toggleClass("is-hidden-layer", this.hidden);
     el.toggleClass("is-hidden-by-group", this.byGroup && !this.hidden);
     setIcon(el, this.hidden ? "eye-off" : "eye");
-    el.setAttribute(
-      "aria-label",
-      this.hidden ? "Show this shape (removes display=none)" : this.byGroup ? "Hidden with its group. Click to hide this shape too" : "Hide this shape (display=none)",
-    );
+    const label = this.viewOnly
+      ? this.hidden
+        ? "Show this shape in the drawing area"
+        : "Hide this shape in the drawing area (the text does not change)"
+      : this.hidden
+        ? "Show this shape (removes display=none)"
+        : this.byGroup
+          ? "Hidden with its group. Click to hide this shape too"
+          : "Hide this shape (display=none)";
+    el.setAttribute("aria-label", label);
     return el;
   }
 }
@@ -99,7 +107,7 @@ export function layerToggles(toggle: (path: string) => void): Extension {
       class: "zyxdraw-layer-gutter",
       markers: (view) => {
         const b = new RangeSetBuilder<GutterMarker>();
-        for (const { from, layer } of layersByLine(view.state)) b.add(from, from, new EyeMarker(layer.hidden, layer.hiddenByGroup));
+        for (const { from, layer } of layersByLine(view.state)) b.add(from, from, new EyeMarker(layer.hidden, layer.hiddenByGroup, layer.path.startsWith("def:")));
         return b.finish();
       },
       lineMarkerChange: (update) => update.startState.field(layerField) !== update.state.field(layerField),

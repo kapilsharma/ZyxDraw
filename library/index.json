@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "libraries": [
+    {
+      "name": "shapes.speech",
+      "description": "Speech bubbles for comics, storyboards and user journeys: say, think and whisper aimed at any spot, shout and caption.",
+      "version": "1.0.0",
+      "licence": "MIT",
+      "files": ["shapes/speech.zyxdl"],
+      "imports": []
+    }
+  ]
+}

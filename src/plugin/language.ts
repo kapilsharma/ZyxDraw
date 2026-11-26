@@ -80,7 +80,10 @@ function attrSpecs(type: string | null): { names: string[]; spec: (n: string) =>
   };
 }
 
-function complete(ctx: CompletionContext): CompletionResult | null {
+/** `preview():`, offered at the start of a line in a library only (issue #23). */
+const PREVIEW: Completion = { label: "preview", type: "keyword", detail: "example uses, shown when the library is open", apply: "preview():\n  " };
+
+function complete(ctx: CompletionContext, library: boolean): CompletionResult | null {
   const word = ctx.matchBefore(/[\w.-]*/);
   if (!word || (word.from === word.to && !ctx.explicit)) return null;
   const doc = ctx.state.doc.toString();
@@ -98,7 +101,7 @@ function complete(ctx: CompletionContext): CompletionResult | null {
     ];
     if (line.trim() === "") {
       // Start of a line: a new name (nothing to suggest), an unnamed shape, `canvas` or `import`.
-      options = [...types, ...LINE_KEYWORDS.map((label) => ({ label, type: "keyword" }))];
+      options = [...types, ...LINE_KEYWORDS.map((label) => ({ label, type: "keyword" })), ...(library ? [PREVIEW] : [])];
     } else if (/^\s*export\s+(?:[\w-]+\s*,\s*)*$/.test(line)) {
       // `export |`: the names this file defines or imports.
       const all = new Set([...names.defs, ...names.styles, ...names.gradients, ...names.clips]);
@@ -147,10 +150,12 @@ function complete(ctx: CompletionContext): CompletionResult | null {
   return { from: word.from, options, validFor: /^[\w.-]*$/ };
 }
 
-export function zyxLanguageSupport(): Extension[] {
+/** `library`: the file is a `.zyxdl` library, where `preview():` is offered too. */
+export function zyxLanguageSupport(options: { library?: boolean } = {}): Extension[] {
+  const library = options.library ?? false;
   return [
     zyxHighlighting(),
-    autocompletion({ override: [complete] }),
+    autocompletion({ override: [(ctx) => complete(ctx, library)] }),
     // Ctrl/Cmd+/ (toggle comment) needs to know the comment marker.
     EditorState.languageData.of(() => [{ commentTokens: { line: "#" } }]),
   ];

@@ -954,3 +954,17 @@ body.zyxdraw-resizing-y * {
   font-family: var(--font-monospace);
   font-size: var(--font-ui-small);
 }
+
+/* ---- A library open in ZyxDraw (issues #24, #25): its shapes to look at and try ---- */
+/* No tools that add or color shapes: values are tried in the Attributes. */
+.zyxdraw-drawing-area.is-library .zyxdraw-edit-only {
+  display: none;
+}
+
+/* Shown over the drawing area, such as for a library without custom shapes. */
+.zyxdraw-stage-message {
+  padding: var(--size-4-4);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  text-align: center;
+}

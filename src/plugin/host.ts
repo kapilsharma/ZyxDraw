@@ -14,7 +14,7 @@ export function compileInVault(
   app: App,
   source: string,
   path: string,
-  options: { measurer?: TextMeasurer; metadata?: boolean; libraryFolder?: string } = {},
+  options: { measurer?: TextMeasurer; metadata?: boolean; libraryFolder?: string; galleryWidth?: number; galleryHidden?: readonly string[] } = {},
 ): Promise<CompileResult> {
   return compileWithImports(source, vaultReader(app), { ...options, path });
 }

@@ -46,6 +46,12 @@ describe("editor highlighting", () => {
     expect(c.get("db")).toBe("def");
   });
 
+  it("colors `preview` as a keyword (library, #23)", () => {
+    const c = classes('preview():\n  ec2(label="A")');
+    expect(c.get("preview")).toBe("keyword");
+    expect(c.get("ec2")).toBe("type");
+  });
+
   it("handles multi-line attribute lists and trailing comments", () => {
     const c = classes("a is rect(\n  width=10\n  fill=red  # why\n)");
     expect(c.get("width")).toBe("property");

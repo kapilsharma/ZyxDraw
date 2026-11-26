@@ -6,7 +6,8 @@ import { runExport, type ExportKind } from "./export";
 import { compileInVault } from "./host";
 import { LOGO_ICON, logoIconContent } from "./logo";
 import { createCanvasMeasurer } from "./measure";
-import { NewDrawingModal } from "./new-drawing";
+import { libraryTemplate } from "./library-template";
+import { DRAWING, LIBRARY, NewDrawingModal } from "./new-drawing";
 import { DEFAULT_SETTINGS, ZyxSettingTab, type Guide, type ViewMode, type ZyxSettings } from "./settings";
 import { mountSvg, renderDiagnostics } from "./svg";
 import { VIEW_TYPE_ZYX, ZyxView } from "./zyx-view";
@@ -91,6 +92,7 @@ export default class ZyxDrawPlugin extends Plugin {
 
     this.addRibbonIcon(LOGO_ICON, "New ZyxDraw drawing", () => this.createDrawing());
     this.addCommand({ id: "new-drawing", name: "New drawing", icon: LOGO_ICON, callback: () => this.createDrawing() });
+    this.addCommand({ id: "new-library", name: "New library", icon: LOGO_ICON, callback: () => this.createLibrary() });
 
     this.addCommand({
       id: "go-to-definition",
@@ -149,6 +151,7 @@ export default class ZyxDrawPlugin extends Plugin {
       this.app.workspace.on("file-menu", (menu, file) => {
         if (file instanceof TFolder) {
           menu.addItem((i) => i.setTitle("New ZyxDraw drawing").setIcon(LOGO_ICON).setSection("action-primary").onClick(() => this.createDrawing(file)));
+          menu.addItem((i) => i.setTitle("New ZyxDraw library").setIcon(LOGO_ICON).setSection("action-primary").onClick(() => this.createLibrary(file)));
           return;
         }
         if (!(file instanceof TFile) || file.extension !== EXTENSION) return;
@@ -234,9 +237,29 @@ export default class ZyxDrawPlugin extends Plugin {
   private createDrawing(folder?: TFolder): void {
     const active = this.app.workspace.getActiveFile();
     const parent = folder ?? this.app.fileManager.getNewFileParent(active?.path ?? "");
-    new NewDrawingModal(this.app, parent, EXTENSION, async (path) => {
-      const file: TFile = await this.app.vault.create(path, SAMPLE);
-      await this.app.workspace.getLeaf(true).openFile(file);
-    }).open();
+    new NewDrawingModal(this.app, parent.path, DRAWING, (path) => this.createAndOpen(path, SAMPLE)).open();
+  }
+
+  /**
+   * Asks for a library name, then creates and opens the library (issue #22). A dotted name
+   * creates folders: `cloud.aws` is `cloud/aws.zyxdl`. Without a folder (command) it goes into
+   * the library folder from the settings, created when needed.
+   */
+  private createLibrary(folder?: TFolder): void {
+    const parent = folder ? folder.path : this.settings.libraryFolder;
+    new NewDrawingModal(this.app, parent, LIBRARY, (path, name) => this.createAndOpen(path, libraryTemplate(name))).open();
+  }
+
+  /** Creates the file and any missing folders on its path, then opens it in a new tab. */
+  private async createAndOpen(path: string, text: string): Promise<void> {
+    const folders = path.split("/").slice(0, -1);
+    for (let i = 1; i <= folders.length; i++) {
+      const dir = folders.slice(0, i).join("/");
+      const existing = this.app.vault.getAbstractFileByPath(dir);
+      if (existing instanceof TFile) throw new Error(`${dir} is a file, not a folder`);
+      if (!existing) await this.app.vault.createFolder(dir);
+    }
+    const file: TFile = await this.app.vault.create(path, text);
+    await this.app.workspace.getLeaf(true).openFile(file);
   }
 }

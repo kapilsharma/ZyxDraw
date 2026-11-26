@@ -137,8 +137,8 @@ class Renderer {
         const dy = box.y - b.minY;
         const original = s.attrs.get("d");
         const d =
-          Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9 && original?.value.t === "str"
-            ? original.value.v // unchanged: keep the user's formatting
+          Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9 && original?.value.t === "str" && !original.value.v.includes("(")
+            ? original.value.v // unchanged, without calculations: keep the user's formatting
             : formatPath(offsetPath(s.pathData!, dx, dy), fmt);
         a.push(["d", d]);
         break;

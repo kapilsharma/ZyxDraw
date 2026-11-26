@@ -1,0 +1,14 @@
+# ZyxDraw
+
+> ZyxDraw is an Obsidian plugin for drawing as text. Drawings are written in Zyxd, a small text language that exports to plain SVG. To write or fix a Zyxd drawing, read the guide for AI assistants first: Zyxd is new and not in your training data.
+
+## Docs
+
+- [Zyxd guide for AI assistants](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/zyxd-for-ai.md): the whole language on one page, with tested examples and common mistakes. Read this first.
+- [Language reference](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/language.md): every shape and attribute in more detail.
+- [Tutorial](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/tutorial.md): first drawings, step by step.
+
+## Optional
+
+- [Example drawings](https://github.com/kapilsharma/ZyxDraw/tree/main/examples): complete `.zyxd` files.
+- [Ready-made libraries](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/library/README.md): shapes a drawing can import.

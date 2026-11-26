@@ -195,6 +195,12 @@ export class DrawingEditor {
   private view: Rect | null = null;
   /** Infinite canvas shown while the pane had no size: fit it once the pane has one. */
   private needsFit = false;
+  /**
+   * A library is open (issue #24): its shapes can be selected, but not moved, resized or edited
+   * here. Values are tried in the Attributes, which write to `preview()`.
+   */
+  private library = false;
+  private messageEl: HTMLElement | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -677,6 +683,34 @@ export class DrawingEditor {
     if (visible.length !== paths.length) this.setSelection(visible);
   }
 
+  /** Turns library mode on or off (issue #24). */
+  setLibrary(on: boolean): void {
+    if (on === this.library) return;
+    this.library = on;
+    this.el.toggleClass("is-library", on);
+    if (on) this.setTool("select");
+    this.drawOverlay();
+  }
+
+  /** A note over the drawing area, such as "This library has no custom shapes" (null hides it). */
+  setMessage(text: string | null): void {
+    if (!text) {
+      this.messageEl?.remove();
+      this.messageEl = null;
+      return;
+    }
+    if (!this.messageEl) {
+      this.messageEl = createDiv({ cls: "zyxdraw-stage-message" });
+      this.el.insertBefore(this.messageEl, this.stage);
+    }
+    this.messageEl.setText(text);
+  }
+
+  /** Width of the visible drawing, in pixels (a library fits its columns to it). */
+  stageWidth(): number {
+    return this.stage.clientWidth;
+  }
+
   select(path: string | null): void {
     const changed = path !== this.selected;
     this.selected = path;
@@ -773,6 +807,14 @@ export class DrawingEditor {
     button("zoom-out", "Zoom out", () => this.setZoom((this.zoom ?? this.fitZoom()) / 1.25));
     button("zoom-in", "Zoom in", () => this.setZoom((this.zoom ?? this.fitZoom()) * 1.25));
     button("maximize", "Fit to drawing area", () => this.setZoom(null));
+
+    // The tools that add shapes and set colors: hidden while a library is open (issue #24).
+    let editTools = false;
+    for (const child of Array.from(bar.children)) {
+      if (child.hasClass("zyxdraw-toolbar-gap")) break;
+      if (editTools) child.addClass("zyxdraw-edit-only");
+      if (child.hasClass("zyxdraw-toolbar-separator")) editTools = true;
+    }
   }
 
   // ---- fill and stroke --------------------------------------------------------------------
@@ -1043,6 +1085,8 @@ export class DrawingEditor {
     const rect = (x: number, y: number, w: number, h: number, cls: string) =>
       el("rect", { x, y, width: Math.max(0, w), height: Math.max(0, h) }, cls);
     rect(box.x, box.y, box.w, box.h, "zyxdraw-selection");
+    // A library: an outline only, nothing to drag (issue #24).
+    if (this.library) return;
 
     // Handles keep their size on screen, whatever the zoom and the shape's own scale.
     const m = layer.getScreenCTM();
@@ -1134,6 +1178,12 @@ export class DrawingEditor {
     }
     if (e.button !== 0) return;
     this.stage.focus();
+    if (this.library) {
+      // A library: clicking selects a shape (or nothing). No dragging (issue #24).
+      const hit = this.shapeAt(e);
+      this.select(hit ? this.pick(hit).path : null);
+      return;
+    }
     if (this.tool === "polygon") {
       this.onDraftDown(e);
       return;
@@ -1434,6 +1484,7 @@ export class DrawingEditor {
   }
 
   private onDoubleClick(e: MouseEvent): void {
+    if (this.library) return;
     if (this.tool === "polygon") {
       this.finishDraft();
       return;
@@ -1450,6 +1501,10 @@ export class DrawingEditor {
   // ---- menu and keyboard ------------------------------------------------------------------
 
   private onContextMenu(e: MouseEvent): void {
+    if (this.library) {
+      e.preventDefault();
+      return;
+    }
     if (DRAWING_TOOLS.includes(this.tool)) {
       e.preventDefault();
       return;
@@ -1516,6 +1571,14 @@ export class DrawingEditor {
     if (mod && e.key.toLowerCase() === "y") {
       e.preventDefault();
       this.host.redo();
+      return;
+    }
+    if (this.library) {
+      // Only panning (Space) and leaving the selection (Escape): nothing here edits a library.
+      if (e.key === " ") {
+        e.preventDefault();
+        this.setSpaceHeld(true);
+      } else if (e.key === "Escape") this.select(null);
       return;
     }
     if (mod && !e.altKey && !e.defaultPrevented && this.shortcut(e.key.toLowerCase(), e.shiftKey)) {
@@ -1613,7 +1676,7 @@ export class DrawingEditor {
    * Shift+G ungroup, A select all. Returns whether the key was one of these.
    */
   shortcut(key: string, shift: boolean): boolean {
-    if (!["c", "x", "v", "d", "g", "a"].includes(key)) return false;
+    if (this.library || !["c", "x", "v", "d", "g", "a"].includes(key)) return false;
     if (DRAWING_TOOLS.includes(this.tool)) this.setTool("select");
     if (key === "c") void this.copy(false);
     else if (key === "x") void this.copy(true);
