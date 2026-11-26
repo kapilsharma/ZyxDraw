@@ -2,635 +2,118 @@
 
 <img src="./images/logo.svg" alt="ZyxDraw logo" width="120">
 
-ZyxDraw is the missing Drawing-as-Text (Yes, `text`; not `code`) tool. It is also `syntactic sugar` and a `superset` for `SVG` drawings, giving it extra features like making reusable libraries.
+**Drawing as text for Obsidian.** Type a few readable lines, or draw with the mouse. Both stay in step, and every drawing exports to plain SVG.
 
-The text is written in **Zyxd**, a small language made for ZyxDraw (files end in `.zyxd`). You do not need to know any programming to read or write it.
+<!--
+  GIF goes here (about 10 seconds): text on the left, drawing on the right.
+  Type a line, the shape appears; drag a shape, its numbers change in the text. Until it is recorded, the picture below stands in.
+-->
+![A drawing in ZyxDraw: the text on the left and the drawing on the right](./images/005_system_design_1.png)
 
-It shows the text and the drawing side by side, with the attributes of the selected shape under the drawing. The aim is to make SVG as simple as text, and to make complex SVG graphics and vector drawings that can scale for complex drawings.
+## Why ZyxDraw
 
->### Origin of name
->
-> Zyx (pronounced as Ziks) is one of the nicknames of the fiction-fantasy novel character [Zoey Nyxx](https://zoeynyxx.com) by [Kapil Sharma](https://kapsnotes.com).
+- **Type or drag: both stay in step.** Type and the drawing updates. Drag a shape and only the numbers that changed are rewritten in the text.
+- **Readable text.** `api is service(label="API", right-of=web 80)` reads almost like English. No programming needed.
+- **Good with AI.** The text is short, so an AI assistant can write and change your drawings, and fix them from clear problem messages.
+- **Plain SVG, always.** Export to SVG or PNG, which open anywhere. If you stop using ZyxDraw, you keep your drawings.
+- **Reuse your shapes.** Make custom shapes once, keep them in libraries, and use them in any drawing.
+- **Part of your notes.** Drawings are text files in your vault: you can search them, link them and embed them in any note.
 
-## Active development as on November 2026
+ZyxDraw is a quick tool for people taking notes. It is not trying to replace any other drawing, diagram or design tool. There are many excellent ones, and ZyxDraw sits happily next to them. Read [Why ZyxDraw](https://github.com/kapilsharma/ZyxDraw/blob/main/WhyZyxDraw.md) for its goals and non-goals.
 
-> Do you feel something that will make your work easier?
->
-> Open an issue in GutHub, I'm actively working to add more features in Zyx Draw.
+## What you can draw
 
-## Some examples
+<table>
+  <tr>
+    <td><img src="./images/005_system_design_1.png" alt="System design diagram"><br><a href="./examples/02_system_design.zyxd">System design</a></td>
+    <td><img src="./images/006_app_wireframe.png" alt="App wireframe"><br><a href="./examples/07_app_wireframe.zyxd">App wireframe</a></td>
+  </tr>
+  <tr>
+    <td><img src="./images/008_heros_journey.png" alt="The hero's journey, a story-writing guide"><br><a href="./examples/10_heros_journey.zyxd">Hero's journey</a></td>
+    <td><img src="./images/007_system_design_2.png" alt="A large system design on an infinite canvas"><br><a href="./examples/08_system_design_sample.zyxd">Infinite canvas</a></td>
+  </tr>
+  <tr>
+    <td><img src="./images/009_kingfisher.png" alt="Vector drawing of a kingfisher"><br><a href="./examples/11_kingfisher.zyxd">Kingfisher</a></td>
+    <td><img src="./images/010_teddy.png" alt="Vector drawing of a teddy bear"><br><a href="./examples/12_teddy.zyxd">Teddy</a></td>
+  </tr>
+</table>
 
-Before we dive deep, let me first share some of the examples created in ZyxDraw. They could be created in drawing mode or text mode or combining their power.
+Every picture is made from a short `.zyxd` text file. Click a name to read its text.
 
-> You can find generated text of these example images in GitHub repo's example folder, and copy-paste locally to generate same image and make some changes there.
+## A 30-second example
 
-### Zoey Nyxx Logo
-
-![Zoey Nyxx](./images/003_zoey_nyxx_logo.png)
-
-### App wireframe
-
-![App wireframe](./images/006_app_wireframe.png)
-
-### System Design
-
-![System Design](./images/007_system_design_2.png)
-
-### Hero's journey (Story writing guideline)
-
-![Hero's Journey](./images/008_heros_journey.png)
-
-### Kingfisher
-
-![Kingfisher](./images/009_kingfisher.png)
-
-### Teddy
-
-![Teddy](./images/010_teddy.png)
-
-### A Landscape
-
-![Landspace](./images/011_landscape.png)
-
-### Palace
-
-![alt text](./images/012_palace.png)
-
-## Diving in details: Simple examples
-
-Consider the following text
-
-```
+```text
 canvas(width=330, height=100)
 
 primary is style(fill=yellow, stroke=red, stroke-width=2)
 secondary is style(fill=rgb(0, 255, 0), stroke=#088, stroke-width=4)
 
 block_a is rect(top=20%, left=5%, width=40%, height=60%, style=primary)
-block_b is rect(
-  right-of=block_a 30,
-  top=20,
-  width=40%
-  height=60
-  style=secondary
-)
+block_b is rect(right-of=block_a 30, top=20, width=40%, height=60, style=secondary)
 
 line(from=block_a, to=block_b, arrow=end, label="Text")
 ```
 
-It will generate the following drawing
+![The drawing made by the text above: a yellow box joined to a green box by an arrow](./images/001_example_1.png)
 
-![Basic example](./images/001_example_1.png)
+- `name is type(...)` gives a shape or style a name, so you can use it later.
+- A **style** is a set of colors and lines you can reuse: `style=primary`.
+- `right-of=block_a 30` places `block_b` 30 pixels to the right of `block_a`. Move `block_a` and `block_b` follows.
+- `line(from=..., to=...)` joins two shapes, and stays joined when they move.
 
-Not a fan of text? The preview section is also a proper drawing editor. Writing a drawing as text is completely optional and just gives us some extra powers to make drawings much easier and quicker. Let's quickly check what is written in the text of the above example.
+The [tutorial](docs/tutorial.md) goes through this example line by line.
 
-### Canvas
+## Use it with AI
 
-Zyxd text usually starts with the canvas size, like
+Zyxd is new, so AI assistants don't know it yet. Give yours the [Zyxd guide for AI](docs/zyxd-for-ai.md) first: one page with the whole language, tested examples and common mistakes. Then ask for your drawing:
 
-```
-canvas(width=330, height=100)
-```
+> *Read this guide: https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/zyxd-for-ai.md. Then write a ZyxDraw drawing of a login flow: a user, a web app, an API and a database, joined by labelled arrows.*
 
-Without it, the canvas is 1000 x 600. If you need an infinite canvas, you can have it too
+If your assistant can't open web links, paste the guide's text in instead.
 
-```
-canvas(infinite)
-```
+Paste the answer into a `.zyxd` file and the drawing appears. Then drag shapes into place, or ask for changes ("make the database green", "put the API below the web app"). If something is wrong, the problems are listed under the drawing with their line. Copy them back to the assistant to fix.
 
-> An image can't be infinite. When exporting an infinite canvas, the generated SVG or image has a height and width that cover all drawing elements (plus 20 px).
+## Features
 
-### Styles
-
-#### Primary
-
-We can define some of the styles that we may reuse later. The following line does just that
-
-```
-primary is style(fill=yellow, stroke=red, stroke-width=2)
-```
-
-The syntax is `name is type`. Here, `primary` is just a name that we want to refer to later, while applying the style.
-
-`style` is a reserved keyword to represent styles. This means you cannot use `style` as a name. The other reserved keywords are `is`, `shape`, `clip`, `gradient`, `canvas`, `import`, `export` and `layer`, and the built-in shape types (`rect`, `circle`, `polygon`, ...) cannot be names either. In a library, `preview` is reserved too.
-
-After style, we have `()`. Within it, we have attributes, which are in the format `attribute=value`. There is a huge list of attributes, which we will see later in detail. They are also listed in the **Attributes**, in the bottom panel under the drawing area.
-
-#### Secondary
-
-Similarly, we defined `secondary` style too as
-
-```
-secondary is style(fill=rgb(0, 255, 0), stroke=#088, stroke-width=4)
-```
-
-It is the same as the primary style, but it shows examples of writing colors. We can write colors as:
-
-- `Name` like `red` and `yellow`
-- `RGB code` like `rgb(0, 255, 0)` (Green color)
-- `Color hex` like `#088` (which is the same as `#008888`) (Teal, a darker shade of cyan - by mixing green and blue)
-
-### Shapes
-
-#### block_a
-
-Like styles, the second important part of ZyxDraw is shapes. A shape defines the boundaries of a drawing object. There are some basic shapes built in, like rectangle (`rect`). The next line draws a rectangle with a predefined style
-
-```
-block_a is rect(top=20%, left=5%, width=40%, height=60%, style=primary)
-```
-
-You can probably read the syntax now. `block_a` is the name to refer to later in the drawing. `rect` is a built-in shape. Its attributes define how to draw the rectangle.
-
-- `top=20%`: Since the height is 100 (pixels), 20% will start at 20 pixels.
-- `left=5%`: We have a width of 330 pixels. So 5% will be 16.5 pixels.
-- `width=40%`: 132 pixels (40% of the width, 330 pixels)
-- `height=60%`: 60 pixels (60% of the height, 100 pixels)
-- `style=primary`: Here we reuse the style we defined earlier. This reuse is the power of ZyxDraw. It will apply all the attributes we defined in style `primary`.
-
-> We can also define things in exact coordinates and pixels.
-
-#### block_b
-
-We defined `block_b` as:
-
-```
-block_b is rect(
-  right-of=block_a 30,
-  top=20,
-  width=40%
-  height=60
-  style=secondary
-)
-```
-
-There is nothing special. It is defined just like block_a, with different attribute values and a different style. One new thing is `right-of=block_a 30`: instead of an `x` position, `block_b` is placed 30 pixels to the right of `block_a`, so it follows when `block_a` moves. If there are too many attributes, we can define them on multiple lines for easier reading.
-
-When we define attributes on multiple lines, the comma is optional (we have a comma after the first two values but not after the last three). However, it is recommended to stick to a single style.
-
-#### Line
-
-At the end, we have a line
-
-```
-line(from=block_a, to=block_b, arrow=end, label="Text")
-```
-
-We can obviously define exact coordinates of start and end of line. However, in this example, we defined it in reference to existing shapes (`from=block_a, to=block_b`). This is another super-power of ZyxDraw: making relationships between shapes.
-
-We also have the attribute `arrow=end`. So a line in ZyxDraw can act as an arrow, depending on the `arrow` attribute. Possible values are: `none`, `start`, `end`, `both`. If we do not define the arrow attribute, default is `none`, which is just a line.
-
-## Second example
-
-Before diving deep, let's take one more example, a bit more complex (curved lines), but it is also simple.
-
-![Zoey Nyxx Logo](./images/003_zoey_nyxx_logo.png)
-
-This example shows how I made the Zoey Nyxx logo in ZyxDraw, with the following Zyxd text
-
-```
-canvas(width=200, height=200)
-
-# The Z, drawn once. Its points start at 0,0, so the shape's box is exactly the Z.
-letter_z is shape(color):
-  path(fill=color, d="M 56.4 5.3 Q 63.9 0 70.9 5.3 L 128.3 37.4 L 128.6 49.8 Q 105.1 54.8 83.8 77.6 Q 68.8 94.2 46.8 116.4 L 57.4 120.6 Q 63.6 123.1 68.8 121.1 L 130.2 98.5 L 130.6 113 L 73 148 Q 66.2 152.6 59.5 148 L 0.5 115.5 L 0 103.1 Q 22.2 99.3 45.5 74 Q 59.5 56.9 81.8 36.4 L 72.4 33.6 Q 64.2 30 58.5 32.6 L 0.9 54 L 0.6 39 Z")
-
-# Blue N (Nyxx): the same Z turned 60 degrees anticlockwise and 1.25 times bigger.
-nyxx is letter_z(color=#31bbec, x=34.2, y=28.2, rotate=-60, scale=1.25)
-
-# Yellow Z (Zoey) on top, 1.1 times bigger.
-zoey is letter_z(color=#fbb904, x=34.7, y=28, scale=1.1)
-```
-
-I'll leave you to read the text above. Some of the features it uses:
-
-- Comments start with `#`. They do not take part in the drawing; they are for us, to later recall why we wrote a line.
-- Definition (`letter_z`): If you know some programming, consider it a function. A `definition` groups together multiple shapes that we may reuse later.
-  - There is some syntax though, which is inspired by the Python programming language.
-    - A definition block starts after `:`
-    - A definition block has indentation. You can see two spaces before `path`; that space makes `path` part of `letter_z` (not an individual shape)
-  - ZyxDraw also supports libraries: a group of common shapes that we may reuse in multiple drawings.
-- `path` may look strange, but it is a simple SVG path. You can read about it online, or we will see more examples/tutorials to define paths.
-  - An easier option in ZyxDraw and SVG is the polygon (when you do not need curves). I used a path as there are some curves in our shape.
-- Once we defined the shape `letter_z`, we can reuse it in the next two lines:
-  - `nyxx` is the same letter in blue, rotated 60 degrees counter-clockwise. It is also scaled (enlarged) by 1.25 (125%).
-  - Then, `zoey` is the same shape in yellow, scaled only 1.1 (110%) this time.
-  - You may also notice layering. Any shape drawn later is drawn above the previously drawn shapes.
-
-> **More examples**
->
-> We have unlimited possibilities with vector graphics in ZyxDraw. Some more examples are given at the end of this file, just scroll down.
-
-## Why I developed ZyxDraw?
-
-There are many great drawing editors, and many diagram-as-code tools too, so the obvious question is, why is ZyxDraw needed? I personally needed it to solve the following problems for myself:
-
-- My drawings need to be strictly SVG, so that it can scale anywhere (Print, small logo, big images, etc).
-  - `Requirement 1`: Must export as SVG + other image formats
-- SVG's XML is not an easy format to write, at least not for non-coders.
-  - `Requirement 2`: Creating diagrams easily while typing in a script, that reads like English.
-  - The goal is not to type everything for a new drawing - I need the best of both worlds.
-- In SVG, I need to copy-paste code every time I want to reuse something.
-  - `Requirement 3`: Easy to design library of custom shapes and reuse them anywhere later.
-- Editing SVG: When we have a lot of points, especially in shapes like polygons, tracking points in an SVG editor is not easy.
-  - `Requirement 4`: Make point editing easy in the text. Selecting a shape or point in the editor should move the cursor in the text, to quickly adjust it.
-
-Above were the major requirements for which ZyxDraw exists. Since I have achieved them already (before open-sourcing it as an Obsidian plugin), I will keep adding more features to make it even easier.
-
-> I welcome to use the editor and suggest the next feature that will make things easier for you. If it do not break SVG output, I'll take it on priority.
-
-## Obsidian Commands
-
-The plugin, in its first version, comes with a lot of useful commands, and the list keeps growing.
-
-![alt text](./images/002_commands.png)
+| Feature | What it gives you |
+| ------- | ----------------- |
+| [Editing in the drawing area](docs/editing.md#editing-in-the-drawing-area) | Select, move, resize, edit points, group, copy and paste, draw lines, polygons and curves, snap to a grid, undo |
+| Text editor | Syntax colors, autocomplete, problems underlined with the reason, `Ctrl`+click to go to a definition |
+| [Attributes and Layers](docs/editing.md#getting-started) | The **Attributes** of the selected shape in the bottom panel, and the **Layers** in the right panel |
+| [Custom shapes and libraries](docs/language.md#custom-shapes-and-libraries) | Shapes with parameters, kept in `.zyxdl` library files and shared by many drawings. [Ready-made libraries](library/README.md) included |
+| [Gradients](docs/language.md#gradients) and [clipping](docs/language.md#clipping) | Smooth color blends and cut-out shapes, written as plain SVG |
+| [Infinite canvas](docs/language.md#position-and-size) | `canvas(infinite)` for drawings that keep growing |
+| In your notes | A ```` ```zyxd ```` code block, or an embed `![[diagram.zyxd]]`, shows the drawing inside a note |
+| [Export](docs/editing.md#export) | SVG, PNG, or an Obsidian canvas. Or copy as SVG or PNG |
 
 ## Getting started
 
-- **New drawing:** right-click a folder in the file explorer and choose **New ZyxDraw drawing**, or use the ribbon icon or the command **ZyxDraw: New drawing**. It asks for the name, then creates and opens the `.zyxd` file.
-- **New library:** right-click a folder and choose **New ZyxDraw library**, or use the command **ZyxDraw: New library** (it creates the file in the library folder from the settings). A dot in the name makes a folder: `cloud.aws` creates `cloud/aws.zyxdl`. The new library has one example shape and says how to import it.
-- **Panels:** a drawing opens in panels. Drag the line between two panels to resize them; double-click it to reset.
-  - **Left panel:** the text.
-  - **Drawing area:** the drawing and its toolbar.
-  - **Bottom panel**, under the drawing area: the **Attributes** of the selected shape. The **Attributes** button in the view header shows or hides it.
-  - **Right panel**: the **Layers**. The **Layers** button in the view header shows or hides it.
-- **Three views:** buttons in the view header, or the `ZyxDraw: Show ...` commands.
-  - Text and drawing side by side (left panel and drawing area)
-  - Text only (left panel)
-  - Drawing only (drawing area)
-- **Go to definition:** `Ctrl` + click (`Cmd` on Mac) on a name in the text: a custom shape (opens its library in a new tab), a library name in an import, an imported or exported name, a shape in `right-of=`, `from=`, ..., a style, a clip or a gradient. Hold `Ctrl` to see what is clickable. Also the command **ZyxDraw: Go to definition** (for the name at the cursor).
-- **Hide shapes while you work:** click the eye next to a shape's line number in the text to hide it (it writes `display=none`); click again to show it. The lines of a hidden shape are faded. Hidden shapes keep their place, so shapes and lines attached to them do not move. See [Hiding shapes](#hiding-shapes).
-- **Comment lines:** `Ctrl+/` (`Cmd+/` on Mac) comments or uncomments the selected lines in the text.
-- **In notes:** a fenced code block with the language `zyxd`, or an embed `![[diagram.zyxd]]`, shows the drawing.
+1. In Obsidian, open **Settings → Community plugins → Browse**, search for **ZyxDraw**, then install and enable it.
+2. Right-click a folder and choose **New ZyxDraw drawing**, or click the ZyxDraw icon in the ribbon.
+3. Type in the left panel, or draw in the drawing area with the toolbar.
+4. Put `![[your drawing.zyxd]]` in any note to show it there.
 
-## Editing on the drawing
+To install by hand instead, download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/kapilsharma/ZyxDraw/releases) into `.obsidian/plugins/zyxdraw/` in your vault, then enable ZyxDraw.
 
-| Action | How |
-| ------ | --- |
-| Select | Click. The first click selects the outer group, clicking again goes one level deeper. Double-click selects the innermost shape |
-| Select several | `Shift`+click adds or removes a shape; drag a box on empty space to select the shapes inside it; `Ctrl+A` selects all. Hidden shapes (`display=none`) are skipped. Move, nudge, delete, color, copy and group then work on all of them |
-| Move | Drag, or arrow keys (Shift for 10 px) |
-| Resize | Drag a handle (rectangles, circles, ellipses, groups with a size) |
-| Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve control points (circles). A point takes its curve handles along, and a smooth point stays smooth when you drag one of its handles (hold `Alt` to make a corner). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text |
-| Delete | `Delete` or `Backspace` |
-| Copy, cut, paste | `Ctrl+C`, `Ctrl+X`, `Ctrl+V` (`Cmd` on Mac), or right-click. Shapes are copied as Zyxd text, so they also paste into the text editor or another drawing. Names already used get a number (`box` → `box1`) |
-| Duplicate | `Ctrl+D`, or right-click: a copy 10 px down and right, drawn on top |
-| Group / ungroup | `Ctrl+G` / `Ctrl+Shift+G`, or right-click. Nothing moves on the canvas |
-| Fill and stroke color | Toolbar color buttons: pick a color, none, or one of the file's gradients, for every selected shape |
-| Layer order | Right-click: bring to front, forward, backward, send to back |
-| Find in text | Right-click: Show in text |
-| Add a shape | Toolbar: rectangle, circle, text |
-| Draw a line | Toolbar line button (`L`): drag, or click both ends. Hold `Shift` for 45° steps |
-| Draw a polygon | Toolbar polygon button (`P`): click to place points, click the first point or press `Enter` to finish |
-| Draw a path (pen) | Toolbar pen button (`B`): click for a corner, press and drag for a smooth curve. Click the first point to close the shape, or press `Enter` (or double-click) to leave it open. `Backspace` removes the last point |
-| Add / delete points | On a selected polygon, polyline or path, click or drag the dot in the middle of a side to add a point (on a curve, it splits the curve without changing its shape); click a point and press `Delete` to remove it |
-| Attributes | Attributes button in the view header: a form under the drawing for the selected shape, or the canvas when nothing is selected. Press Enter or leave the field to apply; clear a field to remove the attribute |
-| Zoom | Toolbar, or `Ctrl` + mouse wheel |
-| Grid | Toolbar grid button: lines spaced to suit the zoom. While it is shown, moving, resizing and point dragging snap to it; hold `Alt` to drag freely |
-| Mouse coordinates | Status bar shows the mouse position over the drawing, in pixels and percent. With a group, custom shape or path selected, also in that shape's own numbers (what you type in `d` or `points`). Toolbar crosshair button turns it off |
-| Undo / redo | `Ctrl+Z` / `Ctrl+Shift+Z` (also in the drawing) |
+## Learn more
 
-Every drawing edit changes only the numbers it must in the text, keeps their unit (`10%` stays a percent), and is one undo step. Comments and formatting are kept. Dragging a shape that is anchored (`right-of=api 60`) along that axis replaces the anchor with a position, and a notice says so.
+- [Tutorial](docs/tutorial.md): your first drawings, step by step.
+- [Zyxd guide for AI](docs/zyxd-for-ai.md): the whole language on one page, for AI assistants (and quick readers).
+- [Language reference](docs/language.md): shapes, positions, groups, layers, styles, gradients, custom shapes and libraries.
+- [Using ZyxDraw in Obsidian](docs/editing.md): panels, every mouse action and shortcut, commands, export and settings.
+- [Examples](examples/): the text of every drawing on this page, and more.
 
-## Working examples
+## Privacy
 
-Below are some examples that I made with ZyxDraw, given here to show the possibilities.
+ZyxDraw works offline and sends nothing anywhere. It uses the clipboard only when you copy, cut or paste shapes, or choose **Copy as SVG / PNG**.
 
-### System design
+## Contributing
 
-Drawn in the editor first, later adjusted in the text
+Ideas and bug reports are welcome as [GitHub issues](https://github.com/kapilsharma/ZyxDraw/issues). ZyxDraw is actively developed, and a feature that keeps plain SVG output goes to the front of the queue. To build it yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-![System Design](./images/005_system_design_1.png)
+## About the name
 
-Code for this
-
-```
-import service, database, queue from shapes.system
-
-canvas(width=720, height=380, background=white)
-
-title is text("Order flow", x=50%, y=16, font-size=22, align=middle)
-
-web is service(label="Web app", x=40, y=80, width=140)
-api is service(label="API", right-of=web 80, y=80)
-orders is database(label="Orders DB", width=120, right-of=api 80, y=70)
-events is queue(label="order-events", below=api 70, x=260)
-mailer is service(label="Mailer", below=events 50, x=260)
-
-line(from=web, to=api, arrow=end, label="HTTPS")
-line(from=api, to=orders, arrow=end, label="SQL")
-line(from=api, to=events, arrow=end, label="publish")
-line(from=events, to=mailer, arrow=end, label="consume")
-```
-
-It also uses a library, `shapes/system.zyxdl`, imported as `shapes.system`, with the following code. Only the three shapes are exported; the style `label` stays inside the library.
-
-```
-export service, database, queue
-
-label is style(font-size=14, fill=#1a1a1a)
-
-service is shape(label, width=140, height=60, color=#dbe8fb):
-  body is rect(width=100%, height=100%, radius=8, fill=color, stroke=#3b6db3, stroke-width=2)
-  name is text(label, x=50%, y=20, align=middle, style=label)
-
-database is shape(label, width=120, height=80, color=#e3f4e1):
-  body is rect(width=100%, height=100%, rx=width / 2, ry=10, fill=color, stroke=#3c8c3a, stroke-width=2)
-  lid is ellipse(x=0, y=0, rx=width / 2, ry=10, fill=color, stroke=#3c8c3a, stroke-width=2)
-  name is text(label, x=50%, y=35, align=middle, style=label)
-
-queue is shape(label, width=140, height=40):
-  body is rect(width=100%, height=100%, fill=#fff4d6, stroke=#b8860b, stroke-width=2, stroke-dasharray="6 3")
-  name is text(label, x=50%, y=12, align=middle, style=label)
-```
-
-### App wireframe
-
-![Wireframe](./images/006_app_wireframe.png)
-
-Generated text in file [examples/07_app_wireframe.zyxd](./examples/07_app_wireframe.zyxd)
-
-### System design on an infinite canvas
-
-![System design](./images/007_system_design_2.png)
-
-Generated text in file [examples/08_system_design_sample.zyxd](./examples/08_system_design_sample.zyxd)
-
-### Hero's Journey
-
-![Hero's Journey](./images/008_heros_journey.png)
-
-Generated text in file [examples/10_heros_journey.zyxd](./examples/10_heros_journey.zyxd)
-
-### Vector art: a kingfisher
-
-![Kingfisher](./images/009_kingfisher.png)
-
-Every part of the bird is a path made of lines and curves, written exactly as the pen tool writes it. Open it, select a part, and drag its points and curve handles to reshape it. Text in file [examples/11_kingfisher.zyxd](./examples/11_kingfisher.zyxd). One part of it:
-
-```
-head is path(d="M 296,142 C 296,98 336,72 380,76 C 422,80 448,108 444,146 L 404,162 C 368,168 326,162 296,142 Z", fill=#6a2c91)
-```
-
-- `M 296,142` moves to the first point.
-- `C 296,98 336,72 380,76` draws a curve to `380,76`; the first two pairs are its curve handles.
-- `L 404,162` draws a straight line, and `Z` closes the shape back to the first point.
-
-## More examples and text style guide
-
-### Shapes
-
-```python
-canvas(width=450, height=270)
-
-box is rect(x=20, y=20, width=155, height=99, radius=8, fill=lightblue, stroke=navy, stroke-width=2)
-dot is circle(cx=234, cy=69, r=40, fill=gold)
-oval is ellipse(x=302, y=38, rx=60, ry=25)
-any_line is line(x1=24, y1=138, x2=174, y2=200, stroke=red, stroke-dasharray="6 4")
-zig_zag is polyline(points="0,0 55,49 98,-1", fill=none, stroke=black, x=196, y=153)
-tri is polygon(points="50,0 137,81 0,80", fill=orange, radius=15, x=302, y=125)
-sine is path(d="M 0 0 C 60 -50 83 46 147 0", fill=#AAA, stroke=red, stroke-width=3, x=36, y=219)
-footer is text("ZoeyNyxx.com", x=355, y=233, font-size=20, align=middle)
-```
-
-- `name is type(attributes)`. The name is optional; you only need it to refer to the shape.
-- Attribute names and values follow SVG. Every attribute has a default.
-- Long attribute lists may span several lines; commas are then optional.
-- Comments start with `#`.
-- `x` / `y` (or `left` / `top`) are the top-left of the shape's box. Circles and ellipses also take `cx` / `cy`.
-
-It will produce the following drawing:
-
-![Shapes](./images/004_shapes.png)
-
-### Position and size
-
-Example code
-
-```python
-a is rect(x=10%, y=20, width=50%, height=40)     # percent of the parent (or canvas)
-b is rect(right=20, bottom=20, width=100, height=50)  # from the right and bottom edges
-c is rect(left=10%, right=10%, y=0, height=30)   # stretch: left + right set the width
-d is rect(right-of=a 40, below=c 10)             # relative to other shapes, with a gap
-```
-
-- Relative: `right-of`, `left-of`, `above`, `below`. One per axis.
-- There will be an error on any conflict. Example: two ways to place the same axis, opposite anchors, or a loop of anchors (`a` right of `b`, `b` right of `a`).
-- `canvas(width=..., height=..., background=...)` sets the frame used for percent. Without it the frame is 1000 x 600.
-- `canvas(infinite)` has no frame: the SVG is sized to what is drawn (plus 20 px), positions may be negative, and top-level shapes use pixels (`%` and `right` / `bottom` need a group with a size). The drawing area gives room to draw anywhere.
-
-### Rotate and scale
-
-```python
-card is rect(x=150, y=50, width=100, height=50, rotate=30)        # degrees, clockwise
-Nyxx is letter_z(color=gold, rotate=-57.5, scale=1.1)                  # custom shapes too
-back is polygon(points="0,20 60,20 60,0 100,40 60,80 60,60 0,60", scale=-1 1)   # mirror
-```
-
-Around the center of the shape's box. They change only the drawing: positions, anchors and `%` use the unturned box. `scale` takes one number, or two (horizontal, vertical).
-
-### Groups
-
-```python
-server is group(x=100, y=50):
-  box is rect(width=200, height=100, fill=lightgray)
-  title is text("API Server", x=10, y=10)
-
-line(from=server.box, to=db)
-```
-
-Attributes go in `( )`, children are indented below `:`. Names only need to be unique among siblings; refer to a child as `server.box`. Children are placed from the group's top-left. A group whose children use `%` needs a `width` and `height`.
-
-### Layers
-
-```python
-background is layer():
-  sky is rect(width=100%, height=100%, fill=lightblue)
-shapes is layer():
-  sun is circle(x=80%, y=10%, r=20, fill=gold)
-```
-
-A layer is a group for one part of the drawing. It is written at the top level only (not inside a group, a custom shape or another layer), and without a `width` / `height` it covers the canvas, so `%` works inside it. Later layers are drawn in front. In SVG it is a plain `<g>`.
-
-The **Layers** view in the right panel lists every top-level shape, group and layer, front-most first; layers and groups open to show their shapes. Click a row to select the shape; its layer becomes the **active layer**, and new shapes you draw or paste go into it. The eye on a row hides or shows it (`display=none`), **+** adds a new layer. Drag a row to put it in front of or behind another row, or into a layer or group; the shape stays in place on the canvas. Right-click a row to delete it. A click in the drawing selects what is in a layer, never the whole layer.
-
-Shapes can refer to shapes in any layer, in front or behind (`right-of=back.sky`): the whole drawing is read before anything is placed. Moving a shape to another layer changes its path (`back.sky` becomes `front.sky`), so before such a move or a delete breaks a reference, ZyxDraw lists what would break and lets you go ahead or cancel.
-
-### Styles
-
-```python
-card is style(fill=white, stroke=gray, stroke-width=2, radius=8)
-a is rect(width=100, height=60, style=card)
-b is rect(width=100, height=60, style=card bold, fill=yellow)   # own attributes win
-```
-
-Several styles apply left to right. Styles cannot set positions.
-
-### Hiding shapes
-
-```python
-back is rect(width=300, height=200, fill=lightgray, display=none)
-front is rect(x=20, y=20, width=100, height=60, fill=orange)
-```
-
-`display=none` hides a shape, a group or a custom shape, as in SVG. It still has its place, so anchors (`right-of=back`) and lines to it keep working. It is saved in the file and exported as `display="none"`. The eye next to each shape in the text editor adds or removes it. Hidden shapes cannot be selected in the drawing.
-
-### Clipping
-
-```python
-top-half is clip():
-  rect(width=100%, height=50%)
-
-c is circle(cx=50, cy=50, r=50, fill=red, clip-path=top-half)
-```
-
-Only the parts inside the clip's shapes stay visible. Shapes in a clip are placed in the clipped shape's box (`%` of that shape), so one clip fits any size. Works on groups too.
-
-### Gradients
-
-```python
-canvas(width=400, height=240, background=sky)
-sky is gradient(from=#7a2a5a, to=#f6c3a8, angle=90)
-sun is gradient(type=radial, from=#fff6c8, to=#ff9a5a)
-glow is gradient(type=radial):
-  stop(offset=0%, color=#ffd36e, opacity=0.9)
-  stop(offset=100%, color=#ffd36e, opacity=0)
-
-halo is circle(cx=300, cy=80, r=70, fill=glow)
-ball is circle(cx=300, cy=80, r=35, fill=sun)
-```
-
-A gradient is used by name wherever a color goes: `fill`, `stroke`, `background`, styles and custom shape parameters. `angle` turns a linear gradient (0 = left to right, 90 = top to bottom); `type=radial` blends from the center outwards. More colors go in indented `stop(...)` lines, and a color fading to `opacity=0` gives a soft glow. It stretches over each shape's box, and is written as a plain SVG `linearGradient` / `radialGradient`.
-
-### Custom shapes and libraries
-
-```python
-database is shape(label, width=120, height=80, color=steelblue):
-  body is rect(width=100%, height=100%, fill=color, radius=10)
-  name is text(label, x=10, y=30)
-
-users is database(label="Users", x=20, y=20)
-orders is database(label="Orders", right-of=users 40, y=20, color=orange)
-```
-
-- A parameter without a default is required.
-- Numbers can be calculations using the parameters: `rx=width / 2`, `y=(height - 20) / 2`. Put spaces around `-` (names may contain `-`).
-- In `points` and `d`, put a calculation in `( )`: `points="0,(height) (aim),(height + length) 20,(height)"`. The exported SVG gets plain numbers.
-- Instances take their parameters plus position and style attributes.
-- Inner parts of a shape from the same file can be referenced (`users.body`). Imported shapes are sealed.
-
-To use shapes in many drawings, put them in a **library**: a `.zyxdl` file. A library holds custom shapes, styles, gradients and clips, and draws nothing. A drawing (`.zyxd`) cannot be imported.
-
-```text
-# shapes/system.zyxdl
-label is style(font-size=14)
-
-service is shape(label, width=140, height=60):
-  body is rect(width=100%, height=100%, radius=8)
-  name is text(label, x=50%, y=20, align=middle, style=label)
-
-export service
-
-# Shown only when this library is open in ZyxDraw
-preview():
-  service(label="Checkout")
-```
-
-```text
-# A drawing
-import service from shapes.system
-import * from shapes.system
-import service as box from shapes.system
-```
-
-- The **library name** is the file's path with dots between folders: `shapes.system` is `shapes/system.zyxdl`. No `/`, no extension. Folder and file names of libraries use letters, digits, `-` and `_` (no dots), and upper and lower case count.
-- An import looks next to the drawing first, then in the **library folder** from the settings (`ZyxDrawLibrary` by default).
-- `export a, b` lists what other files can import. Without it, everything is exported. A library can export what it imported.
-- `import *` brings in everything exported. `as` gives an imported name another name in this file.
-- Later imports override earlier ones, and a local definition always wins. Circular imports and definitions are reported.
-- Create a library with **New ZyxDraw library** in a folder's right-click menu, or the command **ZyxDraw: New library**.
-- `preview():` lists example uses of the library's shapes, written as in a drawing but without `x` and `y`. It is only shown when the library is open: drawings that import the library never draw it.
-- **Open a library** to see all its custom shapes in a grid, each with its name ("not exported" for shapes left out of `export`). A shape without a line in `preview()` uses its defaults, and a parameter without a default shows its own name.
-  - Click a shape, or put the text cursor on its line, to try other values in the **Attributes**: they are written to `preview()`, never to the shape itself. The first value for a shape adds its line (and the `preview():` block when there is none).
-  - The eye next to a `name is shape(...):` line hides that shape in the drawing area only. The eye next to a line in `preview()` writes `display=none` there.
-  - Shapes cannot be moved or added in a library's drawing area, and there are no Layers.
-
-#### Ready-made libraries
-
-The [library](library/) folder of this repository has libraries you can use, such as `shapes.speech`: speech bubbles `say`, `think` and `whisper`, whose tail points at any spot (`tip-x` and `tip-y`, measured from the middle of the bubble), plus `shout` and `caption`; `text-size` sets the size of the words. [examples/17_speech_bubbles.zyxd](examples/17_speech_bubbles.zyxd) is a short comic made with them. For now, copy a `.zyxdl` file into your library folder, keeping its folders (`shapes/speech.zyxdl`), then import its shapes:
-
-```text
-import say, think from shapes.speech
-
-hello is say(label="Hello!", x=20, y=20, tip-x=-60, tip-y=70)
-idea is think(label="What if...", x=220, y=20)
-```
-
-[library/README.md](library/README.md) lists every library and explains how to contribute one. Installing libraries from inside ZyxDraw is planned.
-
-## Export
-
-Commands, or the file menu of a `.zyxd` file:
-
-- **Export as SVG / PNG**: saved next to the drawing. PNG scale and background are in settings.
-- **Export as JSON Canvas**: boxes, text, groups and connected lines become an Obsidian canvas. Other shapes are skipped with a notice.
-- **Copy as SVG / PNG**: to the clipboard.
-
-### Clipboard use
-
-ZyxDraw uses the system clipboard only when you ask it to:
-
-- It **writes** to the clipboard when you copy or cut shapes (`Ctrl+C`, `Ctrl+X`, or the right-click menu), or use **Copy as SVG / PNG**.
-- It **reads** the clipboard only when you paste into the drawing (`Ctrl+V`, or **Paste** in the right-click menu).
-
-Nothing is read in the background, and nothing leaves your device.
-
-## Settings
-
-- Default view (split, text, drawing).
-- Wrap long lines in the text editor (also the command **ZyxDraw: Toggle text wrapping**).
-- Show layer toggles in the text editor: the eye icons that hide and show shapes.
-- Show grid, and show mouse coordinates (also toolbar buttons and the commands **Toggle grid** / **Toggle mouse coordinates**).
-- Unit for new positions and sizes written by edits in the drawing area (percent or pixels).
-- PNG scale and background.
-- Library folder: where libraries shared by many drawings are kept (default `ZyxDrawLibrary`). An import looks next to the drawing first, then here.
-
-In Obsidian 1.13 or later, these settings also show up in the settings search.
-
-## Development
-
-Requirements: Node.js (LTS or newer) and npm.
-
-```sh
-npm install
-npm test          # unit tests and docs examples (plain Node)
-npm run lint      # includes the "core must stay pure" rule
-npm run build     # type check + production bundle -> main.js
-npm run dev       # watch mode
-```
-
-To try it in a vault, point the build at the vault's plugin folder:
-
-```powershell
-$env:OBSIDIAN_PLUGIN_DIR = "C:\path\to\vault\.obsidian\plugins\zyxdraw"
-npm run dev
-```
-
-Or put that path on the first line of a git-ignored file named `.obsidian-plugin-dir` in the repo root. Each build copies `main.js`, `manifest.json` and `styles.css` there. The **Hot Reload** community plugin reloads ZyxDraw after each build.
-
-Layout:
-
-- `src/core/`: pure TypeScript (parser, resolve, layout, SVG, edits, JSON Canvas). No Obsidian or DOM, enforced by lint.
-- `src/plugin/`: Obsidian views, drawing editor, commands, export, embeds, settings.
-- `tests/`: Vitest. `tests/docs/` runs the examples from the language reference when `ZYX_DOCS_DIR` (or the default private docs folder) exists.
-
-### Release
-
-Once per repository: in GitHub, **Settings → Actions → General → Workflow permissions**, choose **Read and write permissions**.
-
-1. Update `version` in `manifest.json` and `package.json`, and add it to `versions.json` with the minimum Obsidian version.
-2. Commit, then tag with the same version (no `v` prefix) and push the tag: `git tag -a 0.1.0 -m "0.1.0"` and `git push origin 0.1.0`.
-3. The release workflow runs the tests, checks the tag matches `manifest.json`, builds, attests the build (signed provenance, recommended for the community directory) and attaches `main.js`, `manifest.json` and `styles.css` to a draft GitHub release with generated notes. Review and publish it.
+Zyx (said "Ziks") is one of the nicknames of Zoey Nyxx, a character in the fantasy novels by [Kapil Sharma](https://kapsnotes.com). See [zoeynyxx.com](https://zoeynyxx.com).
 
 ## License
 
