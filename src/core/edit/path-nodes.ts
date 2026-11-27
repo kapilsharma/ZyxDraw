@@ -13,10 +13,15 @@ export interface Pt {
   y: number;
 }
 
-/** A pen node: the point, and its curve handles (none: a corner). */
+/**
+ * A pen node: the point, and its curve handles (none: a corner). `arc`: the side arriving at
+ * this node is a circle arc through that point (issue #39); on the first node, it is the
+ * closing side's.
+ */
 export interface PenNode extends Pt {
   in?: Pt;
   out?: Pt;
+  arc?: Pt;
 }
 
 const near = (a: Pt, b: Pt, eps = 1e-9) => Math.abs(a.x - b.x) < eps && Math.abs(a.y - b.y) < eps;
@@ -35,38 +40,153 @@ const pt = (p: Pt) => `${num(p.x)},${num(p.y)}`;
 
 // ---- the pen ------------------------------------------------------------------------------------
 
+/** Whether a pen node is smooth: two handles, the outgoing one mirroring the incoming one. */
+function mirrored(n: PenNode): boolean {
+  return !!n.in && !!n.out && near(reflect(n.in, n), n.out, 1e-6);
+}
+
 /**
- * Path text for pen nodes: `M 10,20 C 30,20 50,40 50,60 L 80,60 Z`. Between two nodes the
- * edge is a curve when either has a handle on that side, otherwise a line.
+ * Pen nodes with their numbers rounded by `round`; a smooth node stays smooth (its outgoing
+ * handle is the rounded incoming one, mirrored), so it can still be written with `S`.
+ */
+export function roundPen(nodes: PenNode[], round: (p: Pt) => Pt): PenNode[] {
+  return nodes.map((n) => {
+    const p = round(n);
+    const handleIn = n.in && round(n.in);
+    const handleOut = mirrored(n) && handleIn ? reflect(handleIn, p) : n.out && round(n.out);
+    return { ...p, in: handleIn, out: handleOut, arc: n.arc && round(n.arc) };
+  });
+}
+
+/** A curve from node `a` to `b`: `S` when `a` is smooth after a curve (issue #38), else `C`. */
+function penCurve(a: PenNode, b: PenNode, afterCurve: boolean): string {
+  if (afterCurve && !a.arc && mirrored(a)) return `S ${pt(b.in ?? b)} ${pt(b)}`;
+  return `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)}`;
+}
+
+/** The circle through three points; null when they are (nearly) in a line. */
+function circleThrough(a: Pt, b: Pt, c: Pt): { center: Pt; r: number } | null {
+  const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+  const size = Math.max(Math.hypot(b.x - a.x, b.y - a.y), Math.hypot(c.x - a.x, c.y - a.y), Math.hypot(c.x - b.x, c.y - b.y));
+  if (Math.abs(d) < 1e-6 * size * size || size < 1e-9) return null;
+  const sa = a.x * a.x + a.y * a.y;
+  const sb = b.x * b.x + b.y * b.y;
+  const sc = c.x * c.x + c.y * c.y;
+  const center = { x: (sa * (b.y - c.y) + sb * (c.y - a.y) + sc * (a.y - b.y)) / d, y: (sa * (c.x - b.x) + sb * (a.x - c.x) + sc * (b.x - a.x)) / d };
+  return { center, r: Math.hypot(a.x - center.x, a.y - center.y) };
+}
+
+/**
+ * The numbers of a circle arc from `from` through `through` to `to` (issue #39): radius, and
+ * which of the four arcs (`large`, `sweep`). Null when the three points are in a line.
+ */
+export function arcThrough(from: Pt, through: Pt, to: Pt): ArcFlags | null {
+  const c = circleThrough(from, through, to);
+  if (!c || near(from, to)) return null;
+  const turn = 2 * Math.PI;
+  const angle = (p: Pt) => Math.atan2(p.y - c.center.y, p.x - c.center.x);
+  const norm = (v: number) => ((v % turn) + turn) % turn;
+  const a0 = angle(from);
+  const toEnd = norm(angle(to) - a0);
+  // Going the way angles grow (`sweep` 1: clockwise on screen), `through` comes before `to`.
+  const sweep = norm(angle(through) - a0) < toEnd ? 1 : 0;
+  const length = sweep ? toEnd : turn - toEnd;
+  return { rx: c.r, ry: c.r, rot: 0, large: length > Math.PI + 1e-9 ? 1 : 0, sweep };
+}
+
+/** The point a half circle from `a` to `b` passes through: on the right, going from `a` to `b` (clockwise). */
+export function halfCircle(a: Pt, b: Pt): Pt {
+  const m = mid(a, b);
+  return { x: m.x - (b.y - a.y) / 2, y: m.y + (b.x - a.x) / 2 };
+}
+
+/** A circle arc from `a` to `b` through `through`: `A r r 0 large sweep x,y`, or a line when they are in a line. */
+export function penArc(a: Pt, through: Pt, b: Pt): string {
+  const f = arcThrough(a, through, b);
+  return f ? `A ${num(f.rx)} ${num(f.ry)} 0 ${f.large} ${f.sweep} ${pt(b)}` : `L ${pt(b)}`;
+}
+
+/** One side from node `a` to `b`: an arc (`b.arc`), a curve when either has a handle, else a line. */
+function penSide(a: PenNode, b: PenNode, afterCurve: boolean): string {
+  if (b.arc) return penArc(a, b.arc, b);
+  return a.out || b.in ? penCurve(a, b, afterCurve) : `L ${pt(b)}`;
+}
+
+/**
+ * Path text for pen nodes: `M 10,20 C 30,20 50,40 50,60 S 80,40 80,60 L 90,60 Z`. Between two
+ * nodes the edge is a curve when either has a handle on that side, an arc when the node it
+ * goes to has one, otherwise a line. A curve leaving a smooth node is written `S`: its first
+ * handle mirrors the one before (issue #38).
  */
 export function penPathData(nodes: PenNode[], closed: boolean): string {
   if (nodes.length === 0) return "";
   const parts = [`M ${pt(nodes[0])}`];
   const edges = penEdges(nodes);
   if (edges) parts.push(edges);
-  if (closed && nodes.length > 1) parts.push(penClose(nodes[nodes.length - 1], nodes[0]));
+  if (closed && nodes.length > 1) parts.push(penClose(nodes[nodes.length - 1], nodes[0], nodes[0].arc));
   return parts.join(" ");
 }
 
-/** The edges between pen nodes, without the `M`: `C 30,20 50,40 50,60 L 80,60`. */
+/**
+ * The edges between pen nodes, without the `M`: `C 30,20 50,40 50,60 L 80,60`. The first edge
+ * is never `S`: what comes before it in the text is not known here.
+ */
 export function penEdges(nodes: PenNode[]): string {
   const parts: string[] = [];
-  for (let i = 0; i + 1 < nodes.length; i++) {
-    const a = nodes[i];
-    const b = nodes[i + 1];
-    parts.push(a.out || b.in ? `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)}` : `L ${pt(b)}`);
-  }
+  // A node's incoming handle means the edge before it (written just before) is a curve.
+  for (let i = 0; i + 1 < nodes.length; i++) parts.push(penSide(nodes[i], nodes[i + 1], i > 0));
   return parts.join(" ");
 }
 
-/** Closes a path from node `a` back to the start `b`: a curve then `Z`, or just `Z` (its line). */
-export function penClose(a: PenNode, b: PenNode): string {
-  return a.out || b.in ? `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)} Z` : "Z";
+/**
+ * Closes a path from node `a` back to the start `b`: a curve or an arc (through `arc`) then
+ * `Z`, or just `Z` (its line). The curve is `S` when `a` is smooth: its incoming handle belongs
+ * to the edge written before.
+ */
+export function penClose(a: PenNode, b: PenNode, arc?: Pt): string {
+  if (arc) return `${penArc(a, arc, b)} Z`;
+  return a.out || b.in ? `${penCurve(a, b, true)} Z` : "Z";
 }
 
-/** The same nodes drawn the other way: reversed, each node's handles swapped. */
+/**
+ * Pen nodes for a smooth curve through `points` (issue #36), for people who would rather not
+ * pull handles. At each point the handles lie along the line between its two neighbours, each a
+ * third of its side long, so the curve passes every point smoothly without swinging wide where
+ * points are far apart. Open ends point to the next handle; two points give a straight line.
+ * `closed`: the curve goes round through the first point too.
+ */
+export function smoothThrough(points: Pt[], closed: boolean): PenNode[] {
+  const n = points.length;
+  const nodes: PenNode[] = points.map((p) => ({ x: p.x, y: p.y }));
+  if (n < 3) return nodes;
+  const dist = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
+  for (let i = 0; i < n; i++) {
+    if (!closed && (i === 0 || i === n - 1)) continue;
+    const prev = points[(i - 1 + n) % n];
+    const next = points[(i + 1) % n];
+    const p = points[i];
+    const len = dist(prev, next);
+    if (len < 1e-9) continue;
+    const u = { x: (next.x - prev.x) / len, y: (next.y - prev.y) / len };
+    const back = dist(prev, p) / 3;
+    const ahead = dist(p, next) / 3;
+    nodes[i].in = { x: p.x - u.x * back, y: p.y - u.y * back };
+    nodes[i].out = { x: p.x + u.x * ahead, y: p.y + u.y * ahead };
+  }
+  if (!closed) {
+    nodes[0].out = toward(points[0], nodes[1].in!, 0.5);
+    nodes[n - 1].in = toward(points[n - 1], nodes[n - 2].out!, 0.5);
+  }
+  return nodes;
+}
+
+/**
+ * The same nodes drawn the other way: reversed, each node's handles swapped. An arc stays on
+ * its side, which now arrives at the other node; the first node keeps the closing side's arc.
+ */
 export function reversePen(nodes: PenNode[]): PenNode[] {
-  return [...nodes].reverse().map((n) => ({ x: n.x, y: n.y, in: n.out, out: n.in }));
+  const n = nodes.length;
+  return [...nodes].reverse().map((p, k) => ({ x: p.x, y: p.y, in: p.out, out: p.in, arc: nodes[(n - k) % n].arc }));
 }
 
 // ---- reading a path -----------------------------------------------------------------------------
@@ -280,7 +400,7 @@ function arcCenter(from: Pt, to: Pt, f: ArcFlags) {
     x: center.x + rx * cos * Math.cos(theta) - ry * sin * Math.sin(theta),
     y: center.y + rx * sin * Math.cos(theta) + ry * cos * Math.sin(theta),
   });
-  return { rx, ry, start, delta, at };
+  return { rx, ry, start, delta, at, center };
 }
 
 /** The middle of a segment, on its curve. */
@@ -570,7 +690,7 @@ export function continuePathText(d: string, at: "start" | "end", nodes: PenNode[
   if (!segs || !ends) return { error: "only open paths with one part can be continued" };
   const tail = d.trimEnd().length;
   if (at === "end") {
-    const added = [penEdges(nodes), close ? penClose(nodes[nodes.length - 1], ends.start) : ""].filter(Boolean).join(" ");
+    const added = [penEdges(nodes), close ? penClose(nodes[nodes.length - 1], ends.start, nodes[0].arc) : ""].filter(Boolean).join(" ");
     return d.slice(0, tail) + " " + added + d.slice(tail);
   }
   const reversed = reversePen(nodes);
@@ -579,7 +699,7 @@ export function continuePathText(d: string, at: "start" | "end", nodes: PenNode[
   const text = keepFollowing(apply(d, segs, [{ start: m.start, end: m.end, text: penPathData(reversed, false), next: 1 }]), segs, 1, usesCommas(d));
   if (!close) return text;
   const end = text.trimEnd().length;
-  return text.slice(0, end) + " " + penClose({ x: ends.end.x, y: ends.end.y }, reversed[0]) + text.slice(end);
+  return text.slice(0, end) + " " + penClose({ x: ends.end.x, y: ends.end.y }, reversed[0], reversed[0].arc) + text.slice(end);
 }
 
 // ---- bending sides and corner / smooth points (issue #35) ----------------------------------------
@@ -594,31 +714,62 @@ function asCubic(s: Seg): { a: Pt; c1: Pt; c2: Pt; b: Pt } | null {
   return { a, c1: toward(a, b, 1 / 3), c2: toward(a, b, 2 / 3), b };
 }
 
+/** A side that is part of a circle (`rx` = `ry`): its center and radius as drawn (issue #39); else null. */
+function circleArc(s: Seg): { center: Pt; r: number } | null {
+  if (!s.arc || Math.abs(Math.abs(s.arc.rx) - Math.abs(s.arc.ry)) > 1e-9) return null;
+  const c = arcCenter(s.from, s.to, s.arc);
+  return c && { center: c.center, r: c.rx };
+}
+
 /**
- * Each side as its own SVG path text (`M ... C ...`, in the path's own numbers), for grabbing
- * it in the drawing area; null for a side that cannot be bent (an arc).
+ * Each side as its own SVG path text (`M ... C ...`, or `M ... A ...` for a circle arc, in
+ * the path's own numbers), for grabbing it in the drawing area; null for a side that cannot be
+ * bent (an arc that is part of an ellipse).
  */
 export function pathSideCurves(d: string): (string | null)[] | null {
   const segs = parseSegs(d);
   if (!segs) return null;
   return structure(segs).sides.map((k) => {
-    const c = asCubic(segs[k]);
+    const s = segs[k];
+    if (s.arc && circleArc(s)) return `M ${pt(s.from)} A ${num(Math.abs(s.arc.rx))} ${num(Math.abs(s.arc.ry))} ${num(s.arc.rot)} ${s.arc.large} ${s.arc.sweep} ${pt(s.to)}`;
+    const c = asCubic(s);
     return c && `M ${pt(c.a)} C ${pt(c.c1)} ${pt(c.c2)} ${pt(c.b)}`;
   });
 }
 
 /**
+ * Bends a circle arc (issue #39): the spot held on it moves by (dx, dy), and the arc becomes
+ * the circle arc through the new spot, its ends kept: new radius and flags, same case.
+ */
+function bendArc(d: string, segs: Seg[], k: number, grab: Pt, dx: number, dy: number, round: (n: number) => number): string | { error: string } {
+  const s = segs[k];
+  const c = circleArc(s)!;
+  // The spot on the arc nearest to where the mouse took hold of it.
+  const len = Math.hypot(grab.x - c.center.x, grab.y - c.center.y);
+  const on = len < 1e-9 ? middleOf(s) : { x: c.center.x + ((grab.x - c.center.x) / len) * c.r, y: c.center.y + ((grab.y - c.center.y) / len) * c.r };
+  const through = shift(on, dx, dy);
+  const f = near(through, s.from, 1e-6) || near(through, s.to, 1e-6) ? null : arcThrough(s.from, through, s.to);
+  if (!f) return { error: "the arc would be a straight line here" };
+  const arc = { ...f, rx: round(f.rx), ry: round(f.ry), rot: s.arc!.rot };
+  const comma = usesCommas(d);
+  const text = write("A", s.rel, s.from, { to: s.to, arc }, comma, round);
+  return keepFollowing(apply(d, segs, [{ start: s.start, end: s.end, text, next: k + 1 }]), segs, k + 1, comma);
+}
+
+/**
  * Bends side `side` (issue #35): the spot `grab` on it (the path's own numbers) moves by
  * (dx, dy), and the side becomes a curve (`C`, same case) through the new spot. Both handles
- * move together, so a straight side bends evenly. Arcs cannot be bent.
+ * move together, so a straight side bends evenly. A circle arc stays one, through the new spot
+ * (issue #39); an arc that is part of an ellipse cannot be bent.
  */
 export function bendPathSide(d: string, side: number, grab: Pt, dx: number, dy: number, round: (n: number) => number = (n) => n): string | { error: string } {
   const segs = parseSegs(d);
   const k = segs && structure(segs).sides[side];
   if (!segs || k === undefined || k === null) return { error: "this side cannot be found in `d`" };
   const s = segs[k];
+  if (s.arc && circleArc(s)) return bendArc(d, segs, k, grab, dx, dy, round);
   const c = asCubic(s);
-  if (!c) return { error: "an arc cannot be bent: drag its points instead" };
+  if (!c) return { error: "an arc that is part of an ellipse cannot be bent: drag its points instead" };
   // Where on the side the mouse took hold of it (kept away from the ends, which do not move).
   let t0 = 0.5;
   let best = Infinity;

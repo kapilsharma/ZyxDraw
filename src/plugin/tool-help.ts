@@ -6,7 +6,7 @@
  */
 
 /** The tools of the drawing area, in toolbar order. */
-export const TOOLS = ["select", "hand", "line", "polygon", "pen"] as const;
+export const TOOLS = ["select", "hand", "line", "polygon", "pen", "curve"] as const;
 export type Tool = (typeof TOOLS)[number];
 
 /** One action of a tool: what to do, and what it does. */
@@ -28,10 +28,20 @@ export interface ToolHelp {
   about: string;
   /** Mouse actions and keys, most used first. */
   steps: HelpStep[];
+  /** Where the Help tab's "More in the docs" link goes, when not `DOCS_URL`. */
+  docs?: string;
 }
 
 /** Where the full help is: the editing guide, section "Editing in the drawing area". */
 export const DOCS_URL = "https://github.com/kapilsharma/ZyxDraw/blob/main/docs/editing.md#editing-in-the-drawing-area";
+
+/** The guide to drawing and editing paths, for the pen and curve tools. */
+export const PATHS_DOCS_URL = "https://github.com/kapilsharma/ZyxDraw/blob/main/docs/paths.md";
+
+/** Where the full help for `tool` is. */
+export function docsUrl(tool: Tool): string {
+  return TOOL_HELP[tool].docs ?? DOCS_URL;
+}
 
 export const TOOL_HELP: Record<Tool, ToolHelp> = {
   select: {
@@ -45,7 +55,7 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
       { how: "Drag on empty space", does: "Select the shapes inside the box" },
       { how: "Drag a shape", does: "Move it. Arrow keys nudge it (with Shift: 10 px)" },
       { how: "Drag a handle", does: "Resize. On a path, polygon or line: move a point" },
-      { how: "Drag a side of a selected path", does: "Bend it into a curve. Ctrl + drag moves the whole path instead" },
+      { how: "Drag a side of a selected path", does: "Bend it into a curve (an arc of a circle stays one). Ctrl + drag moves the whole path instead" },
       { how: "Double-click a point of a path", does: "Switch it between corner and smooth (also in its right-click menu)" },
       { how: "Delete or Backspace", does: "Delete the selected shapes" },
       { how: "Ctrl+D", does: "Duplicate" },
@@ -97,12 +107,13 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
   pen: {
     name: "Pen",
     key: "B",
-    tooltip: "Draw a path (B): click for a corner, press and drag for a curve. Backspace removes the last point. Click the first point to close, or press Enter / double-click to leave it open",
-    hint: "Click: corner · Press and drag: curve · Backspace: remove last point · Enter: finish · Esc: stop",
-    about: "Draw a path with corners and smooth curves. To make a curve, keep the mouse button pressed and drag.",
+    tooltip: "Draw a path (B): click for a corner, press and drag for a curve, hold Shift for an arc. Backspace removes the last point. Click the first point to close, or press Enter / double-click to leave it open",
+    hint: "Click: corner · Press and drag: curve · Shift: arc · Backspace: remove last point · Enter: finish · Esc: stop",
+    about: "Draw a path with corners, smooth curves and arcs. To make a curve, keep the mouse button pressed and drag.",
     steps: [
       { how: "Click", does: "Place a corner" },
       { how: "Press and drag", does: "Place a smooth point: dragging pulls out its curve" },
+      { how: "Shift + click", does: "Place a point joined by a half circle. Shift + press and drag: the arc bends through the mouse" },
       { how: "Click the first point", does: "Close the shape" },
       { how: "Enter or double-click", does: "Finish, leaving the path open" },
       { how: "Click an end of the selected path", does: "Go on drawing from it (an open path or polyline). Also the + beside each end, or right-click the end: Continue path" },
@@ -110,6 +121,23 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
       { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
       { how: "Esc", does: "Stop: with 2 or more points, the path is kept, open. With fewer, the tool is left" },
     ],
+    docs: `${PATHS_DOCS_URL}#drawing-with-the-pen`,
+  },
+  curve: {
+    name: "Curve",
+    key: "C",
+    tooltip: "Draw a smooth curve (C): click points and the curve passes smoothly through every one, no handles to pull. Backspace removes the last point. Click the first point to close, or press Enter / double-click to leave it open",
+    hint: "Click: add point · Click first point: close · Backspace: remove last point · Enter: finish · Esc: stop",
+    about: "Draw a smooth line or shape by clicking points: the curve goes through each one. No handles to pull; the text gets an ordinary path.",
+    steps: [
+      { how: "Click", does: "Add a point: the curve bends smoothly through it" },
+      { how: "Click the first point", does: "Close the shape: the curve goes round smoothly (needs 3 points)" },
+      { how: "Enter or double-click", does: "Finish, leaving the curve open" },
+      { how: "Backspace or Ctrl+Z", does: "Remove the last point" },
+      { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
+      { how: "Esc", does: "Stop: with 2 or more points, the curve is kept, open. With fewer, the tool is left" },
+    ],
+    docs: `${PATHS_DOCS_URL}#drawing-with-the-curve-tool`,
   },
 };
 

@@ -54,7 +54,7 @@ Optional, written first, at most once.
 | `line` | `x1`, `y1`, `x2`, `y2`, or `from` / `to` shapes; `arrow` = `none`, `start`, `end`, `both`; `label` | `line(from=a, to=b, arrow=end, label="SQL")` |
 | `polyline` | `points="x,y x,y ..."` (open), `radius` | `polyline(points="0,0 50,40 100,0", fill=none, stroke=black)` |
 | `polygon` | `points="x,y x,y ..."` (closed), `radius` | `polygon(points="50,0 100,80 0,80", fill=orange)` |
-| `path` | `d` = SVG path commands (`M`, `L`, `C`, `Q`, `Z`) | `path(d="M 0 40 C 30 0 70 0 100 40", fill=none, stroke=red)` |
+| `path` | `d` = SVG path commands: `M L H V C S Q T A Z`; lower case means relative to the previous point | `path(d="M 0 40 C 30 0 70 0 100 40", fill=none, stroke=red)` |
 | `text` | the words first, in quotes; `x`, `y` (top-left), `font-size`, `font-weight`, `align` = `start`, `middle`, `end` | `text("Hello", x=50%, y=20, font-size=18, align=middle)` |
 | `group` | `x`, `y`, and `width` / `height` if children use `%`; children indented | see section 5 |
 | `layer` | a top-level group for one part of the drawing | see section 5 |

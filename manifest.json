@@ -1,7 +1,7 @@
 {
   "id": "zyxdraw",
   "name": "Zyx Draw",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "minAppVersion": "1.5.7",
   "description": "Scalable Vector Graphics (SVG) editor, with ability to write complex drawings as readable text.",
   "author": "Kapil Sharma",

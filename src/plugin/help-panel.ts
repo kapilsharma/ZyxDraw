@@ -5,7 +5,7 @@
  */
 import { Platform } from "obsidian";
 import type { PanelView } from "./panels";
-import { DOCS_URL, TOOL_HELP, forPlatform, type Tool } from "./tool-help";
+import { TOOL_HELP, docsUrl, forPlatform, type Tool } from "./tool-help";
 
 export class HelpView implements PanelView {
   readonly el: HTMLElement;
@@ -42,6 +42,6 @@ export class HelpView implements PanelView {
       list.createEl("dt", { text: text(step.how) });
       list.createEl("dd", { text: text(step.does) });
     }
-    this.el.createEl("a", { cls: "zyxdraw-help-more", text: "More in the docs", href: DOCS_URL, attr: { target: "_blank", rel: "noopener" } });
+    this.el.createEl("a", { cls: "zyxdraw-help-more", text: "More in the docs", href: docsUrl(this.tool), attr: { target: "_blank", rel: "noopener" } });
   }
 }

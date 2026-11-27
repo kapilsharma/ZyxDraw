@@ -41,7 +41,10 @@ import {
   normalizeEdits,
   openEnds,
   overlayTransforms,
+  halfCircle,
+  penArc,
   penPathData,
+  smoothThrough,
   pointHandles,
   pointKind,
   previewGeometry,
@@ -93,7 +96,7 @@ export interface DrawingHost {
 
 type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 /** Tools that draw a new shape with clicks. */
-const DRAWING_TOOLS: Tool[] = ["polygon", "line", "pen"];
+const DRAWING_TOOLS: Tool[] = ["polygon", "line", "pen", "curve"];
 const HANDLES: Handle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 const SVG_NS = "http://www.w3.org/2000/svg";
 /** Element attributes a point drag previews (restored on cancel). */
@@ -185,12 +188,15 @@ export class DrawingEditor {
   private lineDraft: { start: { x: number; y: number } | null; mouse: { x: number; y: number } | null; pressed: boolean } | null = null;
   /**
    * Pen tool: the nodes placed so far and the mouse. `press`: the button is down on node
-   * `index` (dragging pulls out its curve handles); `closing`: it is the first node.
+   * `index` (dragging pulls out its curve handles); `closing`: it is the first node; `arc`:
+   * `Shift` was held, so the side to it is a circle arc and dragging bends it (issue #39).
+   * `shift`: `Shift` is held while the mouse moves (the next side shows as a half circle).
    */
   private pen: {
     nodes: PenNode[];
     mouse: { x: number; y: number } | null;
-    press: { pointerId: number; index: number; closing: boolean; client: { x: number; y: number }; moved: boolean } | null;
+    press: { pointerId: number; index: number; closing: boolean; arc: boolean; client: { x: number; y: number }; moved: boolean } | null;
+    shift?: boolean;
     /**
      * Continuing an open path or polyline (issue #34): node 0 is its end `at`; clicking its
      * `other` end closes it. A polyline gets straight sides only.
@@ -392,6 +398,7 @@ export class DrawingEditor {
     this.svg?.querySelector(".zyxdraw-draft")?.remove();
     if (this.tool === "line") this.renderLineDraft();
     else if (this.tool === "pen") this.renderPenDraft();
+    else if (this.tool === "curve") this.renderCurveDraft();
     else this.renderPolygonDraft();
   }
 
@@ -475,7 +482,8 @@ export class DrawingEditor {
   private closesPen(p: { x: number; y: number } | null): boolean {
     const pen = this.pen;
     const nodes = pen?.nodes ?? [];
-    if (!p || nodes.length < 2) return false;
+    // A smooth closed curve needs 3 points to go round (issue #36).
+    if (!p || nodes.length < (this.tool === "curve" ? 3 : 2)) return false;
     if (pen?.cont) return !pen.cont.polyline && this.screenDistance(p, pen.cont.other) <= 8;
     return this.screenDistance(p, nodes[0]) <= 8;
   }
@@ -511,7 +519,7 @@ export class DrawingEditor {
     if (!pen || !p) return;
     e.preventDefault();
     const press = { pointerId: e.pointerId, client: { x: e.clientX, y: e.clientY }, moved: false };
-    if (pen.nodes.length === 0 && !pen.cont) {
+    if (pen.nodes.length === 0 && !pen.cont && this.tool === "pen") {
       // Before the first point: an end (or its "+" mark) of the selected open path continues it.
       const mark = (e.target as Element | null)?.closest?.("[data-continue]")?.getAttribute("data-continue");
       const raw = this.toSvg(e);
@@ -521,35 +529,53 @@ export class DrawingEditor {
         this.startContinue(end.at);
         // Keep the button: dragging from the end pulls out a handle that curves the first new side.
         if (this.pen?.cont && !this.pen.cont.polyline) {
-          this.pen.press = { ...press, index: 0, closing: false };
+          this.pen.press = { ...press, index: 0, closing: false, arc: false };
           this.stage.setPointerCapture(e.pointerId);
         }
         return;
       }
     }
+    // Shift: the side to this point is a circle arc, a half circle until dragged (issue #39).
+    const last = pen.nodes[pen.nodes.length - 1];
+    const arc = e.shiftKey && !!last && !pen.cont?.polyline && this.tool === "pen";
     if (this.closesPen(p)) {
-      pen.press = { ...press, index: 0, closing: true };
+      pen.press = { ...press, index: 0, closing: true, arc };
+      const first = pen.nodes[0];
+      first.arc = arc ? halfCircle(last, pen.cont ? pen.cont.other : first) : undefined;
     } else {
       // A second click on the same spot (double-click) adds nothing; the double-click finishes.
-      const last = pen.nodes[pen.nodes.length - 1];
       if (last && this.screenDistance(p, last) < 4) return;
-      pen.nodes.push({ x: p.x, y: p.y });
-      pen.press = { ...press, index: pen.nodes.length - 1, closing: false };
+      pen.nodes.push({ x: p.x, y: p.y, arc: arc ? halfCircle(last, p) : undefined });
+      pen.press = { ...press, index: pen.nodes.length - 1, closing: false, arc };
     }
     pen.mouse = p;
     this.stage.setPointerCapture(e.pointerId);
     this.renderDraft();
   }
 
-  /** While the button is down on a node, dragging pulls out its curve handles (a smooth point). */
+  /**
+   * While the button is down on a node, dragging pulls out its curve handles (a smooth point),
+   * or, for an arc, bends the arc through the mouse.
+   */
   private onPenMove(e: PointerEvent): void {
     const pen = this.pen;
     if (!pen) return;
     const p = this.draftPoint(e);
     pen.mouse = p;
+    pen.shift = e.shiftKey;
     const press = pen.press;
     if (press && p && e.pointerId === press.pointerId) {
       if (!press.moved && Math.hypot(e.clientX - press.client.x, e.clientY - press.client.y) >= DRAG_THRESHOLD) press.moved = true;
+      // The curve tool works out the handles itself: dragging adds none (issue #36).
+      if (this.tool === "curve") {
+        this.renderDraft();
+        return;
+      }
+      if (press.arc) {
+        if (press.moved) pen.nodes[press.index].arc = { x: p.x, y: p.y };
+        this.renderDraft();
+        return;
+      }
       // Continuing: a polyline has straight sides only, the end drawing goes on from only gets
       // a handle for the new side, and closing on the other end adds no handle.
       const cont = pen.cont;
@@ -589,8 +615,29 @@ export class DrawingEditor {
       new Notice(`ZyxDraw: a path needs at least 2 points (${nodes.length} placed)`);
       return;
     }
+    // The curve tool: a smooth curve through the points clicked (issue #36).
+    const path = this.tool === "curve" ? smoothThrough(nodes, closed) : nodes;
     this.setTool("select");
-    this.runInsert((t) => insertPath(t, nodes, closed, this.fmt));
+    this.runInsert((t) => insertPath(t, path, closed, this.fmt));
+  }
+
+  /**
+   * Curve tool (issue #36): the smooth curve through the points so far and the mouse, the
+   * points, and the first one marked (clicking it closes the curve).
+   */
+  private renderCurveDraft(): void {
+    const pen = this.pen;
+    if (!pen || pen.nodes.length === 0) return;
+    const layer = this.draftLayer();
+    if (!layer) return;
+    const { add, r } = layer;
+    const closing = !!pen.press?.closing || (!pen.press && this.closesPen(pen.mouse));
+    // While the button is down, the mouse is on the point just placed.
+    const points = closing || pen.press || !pen.mouse ? pen.nodes : [...pen.nodes, pen.mouse];
+    if (points.length > 1) add("path", { d: penPathData(smoothThrough(points, closing), closing) }, `zyxdraw-draft-shape${closing ? "" : " is-open"}`);
+    pen.nodes.forEach((p, i) =>
+      add("rect", { x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r }, i === 0 ? `zyxdraw-point is-first${closing ? " is-selected" : ""}` : "zyxdraw-point"),
+    );
   }
 
   /** Draws the path so far, the next side to the mouse, the points and the curve handles. */
@@ -603,14 +650,22 @@ export class DrawingEditor {
     const closing = !pen.press && this.closesPen(pen.mouse);
     const cont = pen.cont;
     const closed = closing || !!pen.press?.closing;
-    let d = penPathData(pen.nodes, closed && !cont);
     const last = pen.nodes[pen.nodes.length - 1];
+    // With Shift held, the side to the mouse shows as the half circle a click would make.
+    const shiftArc = pen.shift && !pen.press && !cont?.polyline;
+    const nodes = closing && shiftArc && !cont ? [{ ...pen.nodes[0], arc: halfCircle(last, pen.nodes[0]) }, ...pen.nodes.slice(1)] : pen.nodes;
+    let d = penPathData(nodes, closed && !cont);
     // Continuing: closing joins the other end of the path, not the first node.
     const m = cont && closed ? cont.other : pen.mouse;
-    if ((cont ? !pen.press || closed : !pen.press && !closing) && m) d += last.out ? ` C ${last.out.x},${last.out.y} ${m.x},${m.y} ${m.x},${m.y}` : ` L ${m.x},${m.y}`;
+    if ((cont ? !pen.press || closed : !pen.press && !closing) && m) {
+      const arc = (cont && closed && pen.press ? pen.nodes[0].arc : undefined) ?? (shiftArc ? halfCircle(last, m) : undefined);
+      d += arc ? ` ${penArc(last, arc, m)}` : last.out ? ` C ${last.out.x},${last.out.y} ${m.x},${m.y} ${m.x},${m.y}` : ` L ${m.x},${m.y}`;
+    }
     if (cont && !cont.polyline) add("rect", { x: cont.other.x - r, y: cont.other.y - r, width: 2 * r, height: 2 * r }, `zyxdraw-point is-first${closing ? " is-selected" : ""}`);
     add("path", { d }, `zyxdraw-draft-shape${closing || pen.press?.closing ? "" : " is-open"}`);
     for (const n of pen.nodes) {
+      // The spot an arc is bent through (issue #39).
+      if (n.arc) add("circle", { cx: n.arc.x, cy: n.arc.y, r: r * 0.75 }, "zyxdraw-point is-control");
       for (const h of [n.in, n.out]) {
         if (!h) continue;
         add("line", { x1: n.x, y1: n.y, x2: h.x, y2: h.y }, "zyxdraw-guide");
@@ -664,7 +719,7 @@ export class DrawingEditor {
     if (tool !== this.tool) this.endDraft();
     if (tool === "polygon" && !this.draft) this.draft = { points: [], mouse: null };
     if (tool === "line" && !this.lineDraft) this.lineDraft = { start: null, mouse: null, pressed: false };
-    if (tool === "pen" && !this.pen) this.pen = { nodes: [], mouse: null, press: null };
+    if ((tool === "pen" || tool === "curve") && !this.pen) this.pen = { nodes: [], mouse: null, press: null };
     const changed = tool !== this.tool;
     this.tool = tool;
     if (changed) this.host.toolChanged(tool);
@@ -879,6 +934,10 @@ export class DrawingEditor {
     this.toolButtons.set(
       "pen",
       button("pen-tool", TOOL_HELP.pen.tooltip, toggle("pen")),
+    );
+    this.toolButtons.set(
+      "curve",
+      button("spline", TOOL_HELP.curve.tooltip, toggle("curve")),
     );
     button("type", "Add text", () => this.add("text"));
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });
@@ -1334,7 +1393,7 @@ export class DrawingEditor {
       this.onLineDown(e);
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.onPenDown(e);
       return;
     }
@@ -1479,7 +1538,7 @@ export class DrawingEditor {
       }
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.onPenMove(e);
       return;
     }
@@ -1567,7 +1626,7 @@ export class DrawingEditor {
       this.onLineUp(e);
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.onPenUp(e);
       return;
     }
@@ -1655,7 +1714,7 @@ export class DrawingEditor {
       this.finishDraft();
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.finishPen(false);
       return;
     }
@@ -1757,7 +1816,7 @@ export class DrawingEditor {
 
   /** Pen or polygon: takes back the last point placed. False when nothing is being drawn. */
   private removeLastPoint(): boolean {
-    if (this.tool === "pen" && this.pen && this.pen.nodes.length > 0) {
+    if ((this.tool === "pen" || this.tool === "curve") && this.pen && this.pen.nodes.length > 0) {
       this.pen.nodes.pop();
       this.pen.press = null;
       // Continuing: taking back the end it started from stops continuing.
@@ -1824,6 +1883,10 @@ export class DrawingEditor {
       this.setTool("pen");
       return;
     }
+    if (!mod && !e.altKey && (e.key === "c" || e.key === "C")) {
+      this.setTool("curve");
+      return;
+    }
     if (this.tool === "line" && this.lineDraft) {
       if (e.key !== "Escape") return;
       // First Escape drops the first end, the second leaves the tool.
@@ -1833,7 +1896,7 @@ export class DrawingEditor {
       e.preventDefault();
       return;
     }
-    if (this.tool === "pen" && this.pen) {
+    if ((this.tool === "pen" || this.tool === "curve") && this.pen) {
       const pen = this.pen;
       if (e.key === "Enter") this.finishPen(false);
       else if (e.key === "Escape") {
