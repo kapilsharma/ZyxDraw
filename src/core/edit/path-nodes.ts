@@ -149,6 +149,38 @@ export function penClose(a: PenNode, b: PenNode, arc?: Pt): string {
 }
 
 /**
+ * Pen nodes for a smooth curve through `points` (issue #36), for people who would rather not
+ * pull handles. At each point the handles lie along the line between its two neighbours, each a
+ * third of its side long, so the curve passes every point smoothly without swinging wide where
+ * points are far apart. Open ends point to the next handle; two points give a straight line.
+ * `closed`: the curve goes round through the first point too.
+ */
+export function smoothThrough(points: Pt[], closed: boolean): PenNode[] {
+  const n = points.length;
+  const nodes: PenNode[] = points.map((p) => ({ x: p.x, y: p.y }));
+  if (n < 3) return nodes;
+  const dist = (a: Pt, b: Pt) => Math.hypot(b.x - a.x, b.y - a.y);
+  for (let i = 0; i < n; i++) {
+    if (!closed && (i === 0 || i === n - 1)) continue;
+    const prev = points[(i - 1 + n) % n];
+    const next = points[(i + 1) % n];
+    const p = points[i];
+    const len = dist(prev, next);
+    if (len < 1e-9) continue;
+    const u = { x: (next.x - prev.x) / len, y: (next.y - prev.y) / len };
+    const back = dist(prev, p) / 3;
+    const ahead = dist(p, next) / 3;
+    nodes[i].in = { x: p.x - u.x * back, y: p.y - u.y * back };
+    nodes[i].out = { x: p.x + u.x * ahead, y: p.y + u.y * ahead };
+  }
+  if (!closed) {
+    nodes[0].out = toward(points[0], nodes[1].in!, 0.5);
+    nodes[n - 1].in = toward(points[n - 1], nodes[n - 2].out!, 0.5);
+  }
+  return nodes;
+}
+
+/**
  * The same nodes drawn the other way: reversed, each node's handles swapped. An arc stays on
  * its side, which now arrives at the other node; the first node keeps the closing side's arc.
  */

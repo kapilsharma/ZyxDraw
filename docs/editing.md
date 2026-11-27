@@ -27,10 +27,10 @@
 | Select several | `Shift`+click adds or removes a shape; drag a box on empty space to select the shapes inside it; `Ctrl+A` selects all. Hidden shapes (`display=none`) are skipped. Move, nudge, delete, color, copy and group then work on all of them |
 | Move | Drag, or arrow keys (Shift for 10 px) |
 | Resize | Drag a handle (rectangles, circles, ellipses, groups with a size) |
-| Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve control points (circles). A point takes its curve handles along, and a smooth point stays smooth when you drag one of its handles (hold `Alt` to make a corner; a point before an `S` curve always stays smooth, so use **Make corner** there). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text |
-| Read a path in plain words | Hover over a path's `d` in the text: a numbered list explains each step, for example "1. Start at 100, 100 · 2. Straight line to 150, 50 · 3. Close the shape". The Attributes of a selected path show the same steps under **Steps of d**, with a small field for each number: changing one changes only that number in the text. Hovering a step in either list highlights it in the drawing |
-| Bend a side | Select a path and drag one of its sides (the line itself, not the dot in its middle): the side becomes a curve through the spot you hold. A curve can be reshaped the same way. To move the whole path instead, hold `Ctrl` (`Cmd` on Mac) while dragging, or use the arrow keys. An arc of a circle stays one: it bends through the spot you hold, its ends kept. An arc of an ellipse cannot be bent |
-| Corner or smooth | Double-click a point of a selected path, or right-click it: **Make smooth** / **Make corner**. Smooth gives the point two handles in a line, along the direction of the points on either side. Corner removes its handles; a side left with no handle becomes a straight line again. Not for the ends of an open path, or points next to an arc |
+| Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve handles (circles). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text. For paths, see [Changing a path](paths.md#changing-a-path) |
+| Read a path in plain words | Hover over a path's `d` in the text: a numbered list explains each step. The Attributes of a selected path show the same steps under **Steps of d**, a field for each number. See [Reading d](paths.md#reading-d) |
+| Bend a side | Select a path and drag one of its sides (the line itself, not the dot in its middle): it bends through the spot you hold; an arc stays part of a circle. `Ctrl` + drag (`Cmd` on Mac) moves the whole path instead. See [Changing a path](paths.md#changing-a-path) |
+| Corner or smooth | Double-click a point of a selected path, or right-click it: **Make smooth** / **Make corner** |
 | Delete | `Delete` or `Backspace` |
 | Copy, cut, paste | `Ctrl+C`, `Ctrl+X`, `Ctrl+V` (`Cmd` on Mac), or right-click. Shapes are copied as Zyxd text, so they also paste into the text editor or another drawing. Names already used get a number (`box` → `box1`) |
 | Duplicate | `Ctrl+D`, or right-click: a copy 10 px down and right, drawn on top |
@@ -41,9 +41,10 @@
 | Add a shape | Toolbar: rectangle, circle, text |
 | Draw a line | Toolbar line button (`L`): drag, or click both ends. Hold `Shift` for 45° steps |
 | Draw a polygon | Toolbar polygon button (`P`): click to place points, click the first point or press `Enter` to finish. `Backspace` or `Ctrl+Z` removes the last point |
-| Draw a path (pen) | Toolbar pen button (`B`): click for a corner; for a curve, keep the mouse button pressed and drag; for an arc, hold `Shift`. Click the first point to close the shape, or press `Enter` (or double-click) to leave it open. `Backspace` or `Ctrl+Z` removes the last point. `Esc` stops: with 2 or more points the path is kept, open. See [Drawing curves](#drawing-curves) |
-| Continue a path | Select an open path or polyline: a **+** appears beside each end. Click it, or with the pen tool click the end itself, or right-click the end: **Continue path**. Then draw as usual: click for a corner, press and drag for a curve; `Enter` or double-click finishes, and clicking the other end closes the path. Only the new part is added to the text, at the start or the end. Not for closed paths, polygons, paths with several parts, or turned and scaled shapes; a polyline gets straight sides and cannot be closed |
-| Add / delete points | On a selected polygon, polyline or path, click or drag the dot in the middle of a side to add a point (on a curve or arc, it splits it without changing its shape); click a point and press `Delete` to remove it. Works with every path command, absolute or relative: only the commands next to the point change, and a relative path stays relative |
+| Draw a path (pen) | Toolbar pen button (`B`): click for a corner; press and drag for a curve; `Shift` for an arc. Click the first point to close, `Enter` or double-click to leave it open. See [Drawing with the pen](paths.md#drawing-with-the-pen) |
+| Draw a smooth curve | Toolbar curve button (`C`): click points and a smooth curve goes through every one, no handles. See [Drawing with the curve tool](paths.md#drawing-with-the-curve-tool) |
+| Continue a path | Select an open path or polyline and click the **+** beside one of its ends, then draw on. See [Going on from an end](paths.md#going-on-from-an-end) |
+| Add / delete points | On a selected polygon, polyline or path, click or drag the dot in the middle of a side to add a point; click a point and press `Delete` to remove it |
 | Attributes | Attributes button in the view header: a form under the drawing for the selected shape, or the canvas when nothing is selected. Press Enter or leave the field to apply; clear a field to remove the attribute |
 | Zoom | Toolbar, or `Ctrl` + mouse wheel |
 | Grid | Toolbar grid button: lines spaced to suit the zoom. While it is shown, moving, resizing and point dragging snap to it; hold `Alt` to drag freely |
@@ -53,43 +54,11 @@
 
 Every drawing edit changes only the numbers it must in the text, keeps their unit (`10%` stays a percent), and is one undo step. Comments and formatting are kept. Dragging a shape that is anchored (`right-of=api 60`) along that axis replaces the anchor with a position, and a notice says so.
 
-While the line, polygon or pen tool is in use, a hint line at the bottom of the drawing area shows its keys. The **Help** tab in the right panel explains each tool in more detail.
+While the line, polygon, pen or curve tool is in use, a hint line at the bottom of the drawing area shows its keys. The **Help** tab in the right panel explains each tool in more detail.
 
 ### Drawing curves
 
-The pen tool (`B`) draws curves. The trick is to **keep the mouse button pressed**: a click makes a corner, and pressing then dragging makes a smooth point. The further you drag, the rounder the curve.
-
-For example, to draw a hill:
-
-1. Press `B`.
-2. Click at the bottom left: the start.
-3. Press at the top, keep the button down, and drag to the right. Let go: the curve bends over the top.
-4. Click at the bottom right, then press `Enter`.
-
-ZyxDraw adds one line to the text:
-
-```zyxd
-path1 is path(d="M 20,100 C 20,100 70,40 100,40 S 180,100 180,100", fill=none, stroke=black)
-```
-
-The `C` and `S` parts are the curves. Their numbers are the handles you pulled out. `S` is a curve that goes on smoothly from a smooth point: its first handle is the one before it, mirrored, so it is not written. To change the curve later, select the path and drag its points (squares) or handles (circles). Dragging either handle of the smooth point turns the other one too.
-
-You can also draw only corners first, then add the curves:
-
-- **Bend a side:** select the path and drag a side. It becomes a curve through the spot you hold.
-- **Smooth a corner:** double-click a point. It gets two handles and the path runs smoothly through it. Double-click again to make it a corner.
-
-Made a wrong click? `Backspace` or `Ctrl+Z` (`Cmd+Z` on Mac) removes the last point, and you go on drawing. `Esc` stops: with 2 or more points, the path is kept as it is.
-
-For an arc, part of a circle (a rounded end, a pie slice), hold `Shift`. `Shift` + click places the next point joined by a half circle, bulging to the right of the way you draw. `Shift` + press and drag: the arc bends through the mouse, so you can make it flat or more than half a circle. While `Shift` is held, the next side shows as a half circle. The text gets an `A` command:
-
-```zyxd
-path1 is path(d="M 20,100 A 50 50 0 0 0 120,100", fill=none, stroke=black)
-```
-
-To change it later, select the path and drag the arc itself: it stays an arc of a circle, through the spot you hold.
-
-Finished too early, for example by a double-click? Select the path and click the **+** beside one of its ends: the pen goes on from there.
+The pen (`B`) and curve (`C`) tools draw paths: lines and shapes with curves and arcs. How to draw them, change them afterwards, and read the `d` text they write is in its own guide: [Drawing and editing paths](paths.md).
 
 ## Commands
 

@@ -114,7 +114,7 @@ export {
   type PointDragOptions,
   type PointHandle,
 } from "./edit/points";
-export { arcThrough, halfCircle, pathSteps, penArc, penPathData, type PathStep, type PenNode, type Pt, type StepNumber } from "./edit/path-nodes";
+export { arcThrough, halfCircle, pathSteps, penArc, penPathData, smoothThrough, type PathStep, type PenNode, type Pt, type StepNumber } from "./edit/path-nodes";
 export { shapeTransform } from "./transform";
 export { formatCoordinate, gridPath, gridSteps, snapDelta } from "./grid";
 export { contentBounds, INFINITE_PADDING, type Bounds } from "./bounds";

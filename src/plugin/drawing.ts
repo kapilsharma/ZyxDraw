@@ -44,6 +44,7 @@ import {
   halfCircle,
   penArc,
   penPathData,
+  smoothThrough,
   pointHandles,
   pointKind,
   previewGeometry,
@@ -95,7 +96,7 @@ export interface DrawingHost {
 
 type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 /** Tools that draw a new shape with clicks. */
-const DRAWING_TOOLS: Tool[] = ["polygon", "line", "pen"];
+const DRAWING_TOOLS: Tool[] = ["polygon", "line", "pen", "curve"];
 const HANDLES: Handle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 const SVG_NS = "http://www.w3.org/2000/svg";
 /** Element attributes a point drag previews (restored on cancel). */
@@ -397,6 +398,7 @@ export class DrawingEditor {
     this.svg?.querySelector(".zyxdraw-draft")?.remove();
     if (this.tool === "line") this.renderLineDraft();
     else if (this.tool === "pen") this.renderPenDraft();
+    else if (this.tool === "curve") this.renderCurveDraft();
     else this.renderPolygonDraft();
   }
 
@@ -480,7 +482,8 @@ export class DrawingEditor {
   private closesPen(p: { x: number; y: number } | null): boolean {
     const pen = this.pen;
     const nodes = pen?.nodes ?? [];
-    if (!p || nodes.length < 2) return false;
+    // A smooth closed curve needs 3 points to go round (issue #36).
+    if (!p || nodes.length < (this.tool === "curve" ? 3 : 2)) return false;
     if (pen?.cont) return !pen.cont.polyline && this.screenDistance(p, pen.cont.other) <= 8;
     return this.screenDistance(p, nodes[0]) <= 8;
   }
@@ -516,7 +519,7 @@ export class DrawingEditor {
     if (!pen || !p) return;
     e.preventDefault();
     const press = { pointerId: e.pointerId, client: { x: e.clientX, y: e.clientY }, moved: false };
-    if (pen.nodes.length === 0 && !pen.cont) {
+    if (pen.nodes.length === 0 && !pen.cont && this.tool === "pen") {
       // Before the first point: an end (or its "+" mark) of the selected open path continues it.
       const mark = (e.target as Element | null)?.closest?.("[data-continue]")?.getAttribute("data-continue");
       const raw = this.toSvg(e);
@@ -534,7 +537,7 @@ export class DrawingEditor {
     }
     // Shift: the side to this point is a circle arc, a half circle until dragged (issue #39).
     const last = pen.nodes[pen.nodes.length - 1];
-    const arc = e.shiftKey && !!last && !pen.cont?.polyline;
+    const arc = e.shiftKey && !!last && !pen.cont?.polyline && this.tool === "pen";
     if (this.closesPen(p)) {
       pen.press = { ...press, index: 0, closing: true, arc };
       const first = pen.nodes[0];
@@ -563,6 +566,11 @@ export class DrawingEditor {
     const press = pen.press;
     if (press && p && e.pointerId === press.pointerId) {
       if (!press.moved && Math.hypot(e.clientX - press.client.x, e.clientY - press.client.y) >= DRAG_THRESHOLD) press.moved = true;
+      // The curve tool works out the handles itself: dragging adds none (issue #36).
+      if (this.tool === "curve") {
+        this.renderDraft();
+        return;
+      }
       if (press.arc) {
         if (press.moved) pen.nodes[press.index].arc = { x: p.x, y: p.y };
         this.renderDraft();
@@ -607,8 +615,29 @@ export class DrawingEditor {
       new Notice(`ZyxDraw: a path needs at least 2 points (${nodes.length} placed)`);
       return;
     }
+    // The curve tool: a smooth curve through the points clicked (issue #36).
+    const path = this.tool === "curve" ? smoothThrough(nodes, closed) : nodes;
     this.setTool("select");
-    this.runInsert((t) => insertPath(t, nodes, closed, this.fmt));
+    this.runInsert((t) => insertPath(t, path, closed, this.fmt));
+  }
+
+  /**
+   * Curve tool (issue #36): the smooth curve through the points so far and the mouse, the
+   * points, and the first one marked (clicking it closes the curve).
+   */
+  private renderCurveDraft(): void {
+    const pen = this.pen;
+    if (!pen || pen.nodes.length === 0) return;
+    const layer = this.draftLayer();
+    if (!layer) return;
+    const { add, r } = layer;
+    const closing = !!pen.press?.closing || (!pen.press && this.closesPen(pen.mouse));
+    // While the button is down, the mouse is on the point just placed.
+    const points = closing || pen.press || !pen.mouse ? pen.nodes : [...pen.nodes, pen.mouse];
+    if (points.length > 1) add("path", { d: penPathData(smoothThrough(points, closing), closing) }, `zyxdraw-draft-shape${closing ? "" : " is-open"}`);
+    pen.nodes.forEach((p, i) =>
+      add("rect", { x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r }, i === 0 ? `zyxdraw-point is-first${closing ? " is-selected" : ""}` : "zyxdraw-point"),
+    );
   }
 
   /** Draws the path so far, the next side to the mouse, the points and the curve handles. */
@@ -690,7 +719,7 @@ export class DrawingEditor {
     if (tool !== this.tool) this.endDraft();
     if (tool === "polygon" && !this.draft) this.draft = { points: [], mouse: null };
     if (tool === "line" && !this.lineDraft) this.lineDraft = { start: null, mouse: null, pressed: false };
-    if (tool === "pen" && !this.pen) this.pen = { nodes: [], mouse: null, press: null };
+    if ((tool === "pen" || tool === "curve") && !this.pen) this.pen = { nodes: [], mouse: null, press: null };
     const changed = tool !== this.tool;
     this.tool = tool;
     if (changed) this.host.toolChanged(tool);
@@ -905,6 +934,10 @@ export class DrawingEditor {
     this.toolButtons.set(
       "pen",
       button("pen-tool", TOOL_HELP.pen.tooltip, toggle("pen")),
+    );
+    this.toolButtons.set(
+      "curve",
+      button("spline", TOOL_HELP.curve.tooltip, toggle("curve")),
     );
     button("type", "Add text", () => this.add("text"));
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });
@@ -1360,7 +1393,7 @@ export class DrawingEditor {
       this.onLineDown(e);
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.onPenDown(e);
       return;
     }
@@ -1505,7 +1538,7 @@ export class DrawingEditor {
       }
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.onPenMove(e);
       return;
     }
@@ -1593,7 +1626,7 @@ export class DrawingEditor {
       this.onLineUp(e);
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.onPenUp(e);
       return;
     }
@@ -1681,7 +1714,7 @@ export class DrawingEditor {
       this.finishDraft();
       return;
     }
-    if (this.tool === "pen") {
+    if (this.tool === "pen" || this.tool === "curve") {
       this.finishPen(false);
       return;
     }
@@ -1783,7 +1816,7 @@ export class DrawingEditor {
 
   /** Pen or polygon: takes back the last point placed. False when nothing is being drawn. */
   private removeLastPoint(): boolean {
-    if (this.tool === "pen" && this.pen && this.pen.nodes.length > 0) {
+    if ((this.tool === "pen" || this.tool === "curve") && this.pen && this.pen.nodes.length > 0) {
       this.pen.nodes.pop();
       this.pen.press = null;
       // Continuing: taking back the end it started from stops continuing.
@@ -1850,6 +1883,10 @@ export class DrawingEditor {
       this.setTool("pen");
       return;
     }
+    if (!mod && !e.altKey && (e.key === "c" || e.key === "C")) {
+      this.setTool("curve");
+      return;
+    }
     if (this.tool === "line" && this.lineDraft) {
       if (e.key !== "Escape") return;
       // First Escape drops the first end, the second leaves the tool.
@@ -1859,7 +1896,7 @@ export class DrawingEditor {
       e.preventDefault();
       return;
     }
-    if (this.tool === "pen" && this.pen) {
+    if ((this.tool === "pen" || this.tool === "curve") && this.pen) {
       const pen = this.pen;
       if (e.key === "Enter") this.finishPen(false);
       else if (e.key === "Escape") {

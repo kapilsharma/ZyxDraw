@@ -6,7 +6,7 @@
  */
 
 /** The tools of the drawing area, in toolbar order. */
-export const TOOLS = ["select", "hand", "line", "polygon", "pen"] as const;
+export const TOOLS = ["select", "hand", "line", "polygon", "pen", "curve"] as const;
 export type Tool = (typeof TOOLS)[number];
 
 /** One action of a tool: what to do, and what it does. */
@@ -110,6 +110,21 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
       { how: "Backspace or Ctrl+Z", does: "Remove the last point" },
       { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
       { how: "Esc", does: "Stop: with 2 or more points, the path is kept, open. With fewer, the tool is left" },
+    ],
+  },
+  curve: {
+    name: "Curve",
+    key: "C",
+    tooltip: "Draw a smooth curve (C): click points and the curve passes smoothly through every one, no handles to pull. Backspace removes the last point. Click the first point to close, or press Enter / double-click to leave it open",
+    hint: "Click: add point · Click first point: close · Backspace: remove last point · Enter: finish · Esc: stop",
+    about: "Draw a smooth line or shape by clicking points: the curve goes through each one. No handles to pull; the text gets an ordinary path.",
+    steps: [
+      { how: "Click", does: "Add a point: the curve bends smoothly through it" },
+      { how: "Click the first point", does: "Close the shape: the curve goes round smoothly (needs 3 points)" },
+      { how: "Enter or double-click", does: "Finish, leaving the curve open" },
+      { how: "Backspace or Ctrl+Z", does: "Remove the last point" },
+      { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
+      { how: "Esc", does: "Stop: with 2 or more points, the curve is kept, open. With fewer, the tool is left" },
     ],
   },
 };
