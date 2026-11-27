@@ -35,9 +35,34 @@ const pt = (p: Pt) => `${num(p.x)},${num(p.y)}`;
 
 // ---- the pen ------------------------------------------------------------------------------------
 
+/** Whether a pen node is smooth: two handles, the outgoing one mirroring the incoming one. */
+function mirrored(n: PenNode): boolean {
+  return !!n.in && !!n.out && near(reflect(n.in, n), n.out, 1e-6);
+}
+
 /**
- * Path text for pen nodes: `M 10,20 C 30,20 50,40 50,60 L 80,60 Z`. Between two nodes the
- * edge is a curve when either has a handle on that side, otherwise a line.
+ * Pen nodes with their numbers rounded by `round`; a smooth node stays smooth (its outgoing
+ * handle is the rounded incoming one, mirrored), so it can still be written with `S`.
+ */
+export function roundPen(nodes: PenNode[], round: (p: Pt) => Pt): PenNode[] {
+  return nodes.map((n) => {
+    const p = round(n);
+    const handleIn = n.in && round(n.in);
+    const handleOut = mirrored(n) && handleIn ? reflect(handleIn, p) : n.out && round(n.out);
+    return { ...p, in: handleIn, out: handleOut };
+  });
+}
+
+/** A curve from node `a` to `b`: `S` when `a` is smooth after a curve (issue #38), else `C`. */
+function penCurve(a: PenNode, b: PenNode, afterCurve: boolean): string {
+  if (afterCurve && mirrored(a)) return `S ${pt(b.in ?? b)} ${pt(b)}`;
+  return `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)}`;
+}
+
+/**
+ * Path text for pen nodes: `M 10,20 C 30,20 50,40 50,60 S 80,40 80,60 L 90,60 Z`. Between two
+ * nodes the edge is a curve when either has a handle on that side, otherwise a line. A curve
+ * leaving a smooth node is written `S`: its first handle mirrors the one before (issue #38).
  */
 export function penPathData(nodes: PenNode[], closed: boolean): string {
   if (nodes.length === 0) return "";
@@ -48,20 +73,27 @@ export function penPathData(nodes: PenNode[], closed: boolean): string {
   return parts.join(" ");
 }
 
-/** The edges between pen nodes, without the `M`: `C 30,20 50,40 50,60 L 80,60`. */
+/**
+ * The edges between pen nodes, without the `M`: `C 30,20 50,40 50,60 L 80,60`. The first edge
+ * is never `S`: what comes before it in the text is not known here.
+ */
 export function penEdges(nodes: PenNode[]): string {
   const parts: string[] = [];
   for (let i = 0; i + 1 < nodes.length; i++) {
     const a = nodes[i];
     const b = nodes[i + 1];
-    parts.push(a.out || b.in ? `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)}` : `L ${pt(b)}`);
+    // A node's incoming handle means the edge before it (written just before) is a curve.
+    parts.push(a.out || b.in ? penCurve(a, b, i > 0) : `L ${pt(b)}`);
   }
   return parts.join(" ");
 }
 
-/** Closes a path from node `a` back to the start `b`: a curve then `Z`, or just `Z` (its line). */
+/**
+ * Closes a path from node `a` back to the start `b`: a curve then `Z`, or just `Z` (its line).
+ * The curve is `S` when `a` is smooth: its incoming handle belongs to the edge written before.
+ */
 export function penClose(a: PenNode, b: PenNode): string {
-  return a.out || b.in ? `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)} Z` : "Z";
+  return a.out || b.in ? `${penCurve(a, b, true)} Z` : "Z";
 }
 
 /** The same nodes drawn the other way: reversed, each node's handles swapped. */

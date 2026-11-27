@@ -9,10 +9,10 @@ function target(src: string) {
 }
 
 describe("pen tool: path text", () => {
-  it("writes lines between corners and curves where a node has handles", () => {
+  it("writes lines between corners, curves where a node has handles, and S after a smooth node (#38)", () => {
     expect(penPathData([{ x: 0, y: 0 }, { x: 10, y: 0 }], false)).toBe("M 0,0 L 10,0");
     const smooth = { x: 10, y: 10, in: { x: 5, y: 10 }, out: { x: 15, y: 10 } };
-    expect(penPathData([{ x: 0, y: 0 }, smooth, { x: 20, y: 0 }], false)).toBe("M 0,0 C 0,0 5,10 10,10 C 15,10 20,0 20,0");
+    expect(penPathData([{ x: 0, y: 0 }, smooth, { x: 20, y: 0 }], false)).toBe("M 0,0 C 0,0 5,10 10,10 S 20,0 20,0");
   });
 
   it("closes with Z, as a curve when the first node has handles", () => {

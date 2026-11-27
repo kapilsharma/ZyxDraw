@@ -9,7 +9,7 @@ import type { Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 import { shapeTransform, transformAbout } from "../transform";
 import { appendLine, blank, canEdit, editableShape, geometry, moveLineEnd, newShapeName, normalizeEdits, StatementEditor, type EditResult, type EditTarget, type TextEdit } from "./edit";
-import { bendPathSide, continuePathText, deletePathNode, isEditablePath, openPathEnds, pathNodeKind, pathSideCurves, pathSides, pathSteps, penPathData, setPathNodeSmooth, splitPathSide, type PathStep, type PenNode, type Pt } from "./path-nodes";
+import { bendPathSide, continuePathText, deletePathNode, isEditablePath, openPathEnds, pathNodeKind, pathSideCurves, pathSides, pathSteps, penPathData, roundPen, setPathNodeSmooth, splitPathSide, type PathStep, type PenNode, type Pt } from "./path-nodes";
 
 export interface PointHandle {
   /** Position in frame coordinates, before rotate / scale (see `overlayTransforms`). */
@@ -36,11 +36,15 @@ interface Segment {
   args: NumToken[];
 }
 
-/** Which numbers a handle moves: index into the segment list, argument index, axis. */
+/**
+ * Which numbers a handle moves: index into the segment list, argument index, axis; `sign` -1
+ * moves the number the other way (an `S` curve's mirrored handle moves the handle it mirrors).
+ */
 interface Target {
   seg: number;
   arg: number;
   axis: 0 | 1;
+  sign?: -1;
 }
 
 interface RawHandle {
@@ -171,7 +175,7 @@ export function insertPath(target: EditTarget, nodes: PenNode[], closed: boolean
     return result;
   }
   const round = (p: { x: number; y: number }) => ({ x: Number(fmt(p.x)), y: Number(fmt(p.y)) });
-  const rounded = nodes.map((n) => ({ ...round(n), in: n.in && round(n.in), out: n.out && round(n.out) }));
+  const rounded = roundPen(nodes, round);
   const name = newShapeName(target, "path");
   const style = closed ? "" : ", fill=none, stroke=black";
   result.edits = [appendLine(target.source, `${name} is path(d="${penPathData(rounded, closed)}"${style})`)];
@@ -236,7 +240,7 @@ export function continuePath(target: EditTarget, path: string, at: "start" | "en
     if (!g || !openEnds(target.scene, shape)) return "only open paths and polylines that are not turned or scaled can be continued";
     const off = offset(shape, g.box);
     const own = (p: Pt): Pt => ({ x: Number(fmt(p.x - off.x)), y: Number(fmt(p.y - off.y)) });
-    const local: PenNode[] = nodes.map((n) => ({ ...own(n), in: n.in && own(n.in), out: n.out && own(n.out) }));
+    const local: PenNode[] = roundPen(nodes, own);
     if (shape.type === "polyline") {
       if (close) return "a polyline cannot be closed: change `polyline` to `polygon` to close it";
       return polylineContinue(value, at, local.slice(1), fmt);
@@ -622,7 +626,7 @@ function pointDeltas(shape: Shape, index: number, dx: number, dy: number, option
     if (t) delta.set(t, (delta.get(t) ?? 0) + d);
   };
   const move = (targets: Target[], mx: number, my: number) => {
-    for (const t of targets) add(parsed.segments[t.seg].args[t.arg], t.axis === 0 ? mx : my);
+    for (const t of targets) add(parsed.segments[t.seg].args[t.arg], (t.axis === 0 ? mx : my) * (t.sign ?? 1));
   };
   move(h.targets, dx, dy);
   move(h.carry ?? [], dx, dy);
@@ -884,6 +888,14 @@ function pathHandles(segments: Segment[]): RawHandle[] {
       si.c1 = control(0, [start]);
       si.c2 = control(2, [end]);
     } else if (s.upper === "S") {
+      // Its first handle has no numbers: it mirrors the curve before's last handle about the
+      // start (issue #38). Shown so the point looks smooth; dragging it turns the handle it
+      // mirrors the other way, so the point stays smooth by itself.
+      const before = info[seg - 1]?.c2;
+      if (before && (info[seg - 1].upper === "C" || info[seg - 1].upper === "S")) {
+        const at = { x: 2 * start.x - before.at.x, y: 2 * start.y - before.at.y };
+        handles.push({ ...at, kind: "control", guides: [start], targets: before.targets.map((t) => ({ ...t, sign: -1 as const })), seg, isEnd: false });
+      }
       si.c2 = control(0, [end]);
     } else if (s.upper === "Q") {
       control(0, [start, end]);

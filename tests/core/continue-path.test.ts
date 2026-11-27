@@ -52,14 +52,14 @@ describe("continuing a path at its end", () => {
   it("adds curves for smooth points, and for a handle pulled out of the end", () => {
     const smooth: PenNode = { x: 80, y: 40, in: { x: 70, y: 40 }, out: { x: 90, y: 40 } };
     expect(cont(LINE, "p", "end", [{ x: 50, y: 10, out: { x: 60, y: 10 } }, smooth, { x: 120, y: 10 }])).toBe(
-      'p is path(d="M 10,10 L 50,10 C 60,10 70,40 80,40 C 90,40 120,10 120,10", fill=none, stroke=black)',
+      'p is path(d="M 10,10 L 50,10 C 60,10 70,40 80,40 S 120,10 120,10", fill=none, stroke=black)',
     );
   });
 
   it("closes the path on the other end", () => {
     expect(cont(LINE, "p", "end", [{ x: 50, y: 10 }, { x: 30, y: 40 }], true)).toBe('p is path(d="M 10,10 L 50,10 L 30,40 Z", fill=none, stroke=black)');
     expect(cont(LINE, "p", "end", [{ x: 50, y: 10 }, { x: 30, y: 40, in: { x: 40, y: 40 }, out: { x: 20, y: 40 } }], true)).toBe(
-      'p is path(d="M 10,10 L 50,10 C 50,10 40,40 30,40 C 20,40 10,10 10,10 Z", fill=none, stroke=black)',
+      'p is path(d="M 10,10 L 50,10 C 50,10 40,40 30,40 S 10,10 10,10 Z", fill=none, stroke=black)',
     );
   });
 

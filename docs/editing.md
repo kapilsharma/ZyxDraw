@@ -27,7 +27,7 @@
 | Select several | `Shift`+click adds or removes a shape; drag a box on empty space to select the shapes inside it; `Ctrl+A` selects all. Hidden shapes (`display=none`) are skipped. Move, nudge, delete, color, copy and group then work on all of them |
 | Move | Drag, or arrow keys (Shift for 10 px) |
 | Resize | Drag a handle (rectangles, circles, ellipses, groups with a size) |
-| Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve control points (circles). A point takes its curve handles along, and a smooth point stays smooth when you drag one of its handles (hold `Alt` to make a corner). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text |
+| Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve control points (circles). A point takes its curve handles along, and a smooth point stays smooth when you drag one of its handles (hold `Alt` to make a corner; a point before an `S` curve always stays smooth, so use **Make corner** there). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text |
 | Read a path in plain words | Hover over a path's `d` in the text: a numbered list explains each step, for example "1. Start at 100, 100 · 2. Straight line to 150, 50 · 3. Close the shape". The Attributes of a selected path show the same steps under **Steps of d**, with a small field for each number: changing one changes only that number in the text. Hovering a step in either list highlights it in the drawing |
 | Bend a side | Select a path and drag one of its sides (the line itself, not the dot in its middle): the side becomes a curve through the spot you hold. A curve can be reshaped the same way. To move the whole path instead, hold `Ctrl` (`Cmd` on Mac) while dragging, or use the arrow keys. Arcs cannot be bent |
 | Corner or smooth | Double-click a point of a selected path, or right-click it: **Make smooth** / **Make corner**. Smooth gives the point two handles in a line, along the direction of the points on either side. Corner removes its handles; a side left with no handle becomes a straight line again. Not for the ends of an open path, or points next to an arc |
@@ -69,10 +69,10 @@ For example, to draw a hill:
 ZyxDraw adds one line to the text:
 
 ```zyxd
-path1 is path(d="M 20,100 C 20,100 70,40 100,40 C 130,40 180,100 180,100", fill=none, stroke=black)
+path1 is path(d="M 20,100 C 20,100 70,40 100,40 S 180,100 180,100", fill=none, stroke=black)
 ```
 
-The `C` parts are the curves. Their numbers are the handles you pulled out. To change the curve later, select the path and drag its points (squares) or handles (circles).
+The `C` and `S` parts are the curves. Their numbers are the handles you pulled out. `S` is a curve that goes on smoothly from a smooth point: its first handle is the one before it, mirrored, so it is not written. To change the curve later, select the path and drag its points (squares) or handles (circles). Dragging either handle of the smooth point turns the other one too.
 
 You can also draw only corners first, then add the curves:
 
