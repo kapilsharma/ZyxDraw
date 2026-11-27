@@ -45,6 +45,8 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
       { how: "Drag on empty space", does: "Select the shapes inside the box" },
       { how: "Drag a shape", does: "Move it. Arrow keys nudge it (with Shift: 10 px)" },
       { how: "Drag a handle", does: "Resize. On a path, polygon or line: move a point" },
+      { how: "Drag a side of a selected path", does: "Bend it into a curve. Ctrl + drag moves the whole path instead" },
+      { how: "Double-click a point of a path", does: "Switch it between corner and smooth (also in its right-click menu)" },
       { how: "Delete or Backspace", does: "Delete the selected shapes" },
       { how: "Ctrl+D", does: "Duplicate" },
       { how: "Ctrl+G", does: "Group (Ctrl+Shift+G: ungroup)" },

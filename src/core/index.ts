@@ -83,6 +83,9 @@ export * from "./edit/properties";
 export * from "./edit/arrange";
 export * from "./edit/visibility";
 export {
+  bendableSides,
+  bendSide,
+  bentPointsText,
   canAddPoints,
   continuePath,
   deletePoint,
@@ -98,8 +101,10 @@ export {
   openEnds,
   overlayTransforms,
   pointHandles,
+  pointKind,
   pointSourceRange,
   previewGeometry,
+  setPointSmooth,
   sideHandles,
   type NumberFormat,
   type OpenEnd,

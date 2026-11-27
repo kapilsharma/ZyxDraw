@@ -385,13 +385,15 @@ function sameSeg(a: Seg, b: Seg): boolean {
  * that now draws differently: an `S` / `T` whose mirrored handle changed becomes `C` / `Q`, and a
  * relative segment measured from a point that moved gets new numbers. Each keeps its case.
  */
-function keepFollowing(d: string, old: Seg[], first: number, comma: boolean): string {
-  const count = old.length - first;
+function keepFollowing(d: string, old: Seg[], first: number, comma: boolean, end = old.length): string {
+  // To the end of the path, segments are matched from the end; before a later change (\`end\`),
+  // they keep their index (the change before them replaced one segment with one).
+  const count = end - first;
   let text = d;
   for (let t = 0; t < count; t++) {
     const segs = parseSegs(text);
     if (!segs) return text;
-    const k = segs.length - count + t;
+    const k = end === old.length ? segs.length - count + t : first + t;
     const o = old[first + t];
     const s = segs[k];
     if (!s || o.upper === "Z" || sameSeg(o, s)) continue;
@@ -575,4 +577,174 @@ export function continuePathText(d: string, at: "start" | "end", nodes: PenNode[
   if (!close) return text;
   const end = text.trimEnd().length;
   return text.slice(0, end) + " " + penClose({ x: ends.end.x, y: ends.end.y }, reversed[0]) + text.slice(end);
+}
+
+// ---- bending sides and corner / smooth points (issue #35) ----------------------------------------
+
+/** A side as a cubic curve (a line: handles a third of the way along); null for an arc. */
+function asCubic(s: Seg): { a: Pt; c1: Pt; c2: Pt; b: Pt } | null {
+  if (s.arc && arcCenter(s.from, s.to, s.arc)) return null;
+  const a = s.from;
+  const b = s.to;
+  if (s.c1 && s.c2) return { a, c1: s.c1, c2: s.c2, b };
+  if (s.q) return { a, c1: toward(a, s.q, 2 / 3), c2: toward(b, s.q, 2 / 3), b };
+  return { a, c1: toward(a, b, 1 / 3), c2: toward(a, b, 2 / 3), b };
+}
+
+/**
+ * Each side as its own SVG path text (`M ... C ...`, in the path's own numbers), for grabbing
+ * it in the drawing area; null for a side that cannot be bent (an arc).
+ */
+export function pathSideCurves(d: string): (string | null)[] | null {
+  const segs = parseSegs(d);
+  if (!segs) return null;
+  return structure(segs).sides.map((k) => {
+    const c = asCubic(segs[k]);
+    return c && `M ${pt(c.a)} C ${pt(c.c1)} ${pt(c.c2)} ${pt(c.b)}`;
+  });
+}
+
+/**
+ * Bends side `side` (issue #35): the spot `grab` on it (the path's own numbers) moves by
+ * (dx, dy), and the side becomes a curve (`C`, same case) through the new spot. Both handles
+ * move together, so a straight side bends evenly. Arcs cannot be bent.
+ */
+export function bendPathSide(d: string, side: number, grab: Pt, dx: number, dy: number, round: (n: number) => number = (n) => n): string | { error: string } {
+  const segs = parseSegs(d);
+  const k = segs && structure(segs).sides[side];
+  if (!segs || k === undefined || k === null) return { error: "this side cannot be found in `d`" };
+  const s = segs[k];
+  const c = asCubic(s);
+  if (!c) return { error: "an arc cannot be bent: drag its points instead" };
+  // Where on the side the mouse took hold of it (kept away from the ends, which do not move).
+  let t0 = 0.5;
+  let best = Infinity;
+  for (let i = 0; i <= 100; i++) {
+    const t = i / 100;
+    const p = cubicAt(c.a, c.c1, c.c2, c.b, t);
+    const dist = Math.hypot(p.x - grab.x, p.y - grab.y);
+    if (dist < best) {
+      best = dist;
+      t0 = t;
+    }
+  }
+  t0 = Math.min(0.85, Math.max(0.15, t0));
+  // Moving both handles by m moves the point at t0 by 3 t0 (1 - t0) m.
+  const f = 3 * t0 * (1 - t0);
+  const r = (p: Pt): Pt => ({ x: round(p.x), y: round(p.y) });
+  const g = { c1: r(shift(c.c1, dx / f, dy / f)), c2: r(shift(c.c2, dx / f, dy / f)), to: c.b };
+  const comma = usesCommas(d);
+  const curve = write("C", s.rel, c.a, g, comma, round);
+  const text = s.upper === "Z" ? `${curve} ${s.letter}` : curve;
+  return keepFollowing(apply(d, segs, [{ start: s.start, end: s.end, text, next: k + 1 }]), segs, k + 1, comma);
+}
+
+/** The sides on either side of node `node`: segment indexes (a `Z` drawing a line counts), or null at an open end. */
+function nodeSides(segs: Seg[], node: number): { incoming: number; outgoing: number } | null {
+  const k = structure(segs).nodes[node];
+  if (k === undefined) return null;
+  let ms = k;
+  while (segs[ms].upper !== "M") ms--;
+  let me = k;
+  while (me + 1 < segs.length && segs[me + 1].upper !== "M") me++;
+  const closed = segs[me].upper === "Z";
+  const last = closed ? me - 1 : me;
+  const mergedClose = closed && last !== ms && near(segs[last].to, segs[ms].to);
+  let incoming: number | null = k;
+  let outgoing: number | null = k + 1 <= last ? k + 1 : null;
+  if (k === ms) incoming = closed ? (mergedClose ? last : me) : null;
+  if (k === last && closed && !mergedClose) outgoing = me;
+  if (incoming === null || outgoing === null || outgoing === incoming) return null;
+  return { incoming, outgoing };
+}
+
+/** Whether two handles of a node point in opposite directions. */
+function opposite(node: Pt, a: Pt, b: Pt): boolean {
+  const u = { x: a.x - node.x, y: a.y - node.y };
+  const v = { x: b.x - node.x, y: b.y - node.y };
+  const lu = Math.hypot(u.x, u.y);
+  const lv = Math.hypot(v.x, v.y);
+  if (lu < 1e-6 || lv < 1e-6) return false;
+  return (u.x * v.x + u.y * v.y) / (lu * lv) < -0.999;
+}
+
+/**
+ * Whether point `node` is smooth (its two handles in a straight line) or a corner; null when it
+ * cannot be switched: an end of an open path, or next to an arc.
+ */
+export function pathNodeKind(d: string, node: number): "smooth" | "corner" | null {
+  const segs = parseSegs(d);
+  const sides = segs && nodeSides(segs, node);
+  if (!segs || !sides) return null;
+  const inc = asCubic(segs[sides.incoming]);
+  const out = asCubic(segs[sides.outgoing]);
+  if (!inc || !out) return null;
+  // A line has no handles: its "handles" a third of the way along do not count.
+  const handleIn = lineLike(segs[sides.incoming]) ? null : inc.c2;
+  const handleOut = lineLike(segs[sides.outgoing]) ? null : out.c1;
+  return handleIn && handleOut && opposite(inc.b, handleIn, handleOut) ? "smooth" : "corner";
+}
+
+/**
+ * Makes point `node` smooth or a corner (issue #35). Smooth: its two handles in a line along
+ * the direction from the point before to the point after, each as long as before (a third of
+ * the side when it had none). Corner: its handles go; a side with no handle left becomes a
+ * line again. Only the two sides around the point change, in their own case.
+ */
+export function setPathNodeSmooth(d: string, node: number, smooth: boolean, round: (n: number) => number = (n) => n): string | { error: string } {
+  const segs = parseSegs(d);
+  const sides = segs && nodeSides(segs, node);
+  if (!segs || !sides) return { error: "an end of an open path has only one side, so it has no corner to change" };
+  const si = segs[sides.incoming];
+  const so = segs[sides.outgoing];
+  const inc = asCubic(si);
+  const out = asCubic(so);
+  if (!inc || !out) return { error: "a point next to an arc cannot be switched: arcs have no handles" };
+  const p = inc.b;
+  const comma = usesCommas(d);
+  const r = (q: Pt): Pt => ({ x: round(q.x), y: round(q.y) });
+  const lineIn = lineLike(si);
+  const lineOut = lineLike(so);
+  let inC1 = inc.c1;
+  let inC2: Pt;
+  let outC1: Pt;
+  let outC2 = out.c2;
+  if (smooth) {
+    const dir = { x: out.b.x - inc.a.x, y: out.b.y - inc.a.y };
+    const len = Math.hypot(dir.x, dir.y);
+    if (len < 1e-9) return { error: "this point's neighbours are in the same place, so there is no direction to smooth along" };
+    const u = { x: dir.x / len, y: dir.y / len };
+    const lenIn = lineIn || near(inc.c2, p) ? Math.hypot(p.x - inc.a.x, p.y - inc.a.y) / 3 : Math.hypot(inc.c2.x - p.x, inc.c2.y - p.y);
+    const lenOut = lineOut || near(out.c1, p) ? Math.hypot(out.b.x - p.x, out.b.y - p.y) / 3 : Math.hypot(out.c1.x - p.x, out.c1.y - p.y);
+    inC2 = r({ x: p.x - u.x * lenIn, y: p.y - u.y * lenIn });
+    outC1 = r({ x: p.x + u.x * lenOut, y: p.y + u.y * lenOut });
+    // A line's far end has no handle: it stays on that end.
+    if (lineIn) inC1 = inc.a;
+    if (lineOut) outC2 = out.b;
+  } else {
+    if (lineIn && lineOut) return d;
+    inC2 = p;
+    outC1 = p;
+  }
+  // The new text of one side; a side whose handles both sit on its ends is a line again.
+  const side = (s: Seg, c: { a: Pt; b: Pt }, c1: Pt, c2: Pt): string | null => {
+    if (lineLike(s) && !smooth) return null; // a line stays as written
+    const straight = near(c1, c.a, 1e-6) && near(c2, c.b, 1e-6);
+    const text = straight ? write(lineUpper(s.upper === "Z" ? "L" : s.upper, c.a, c.b), s.rel, c.a, { to: c.b }, comma) : write("C", s.rel, c.a, { c1, c2, to: c.b }, comma, round);
+    // A `Z` that drew a line: a curve now comes before it.
+    if (s.upper === "Z") return straight ? null : `${text} ${s.letter}`;
+    return text;
+  };
+  const changes: Change[] = [];
+  const inText = side(si, inc, inC1, inC2);
+  const outText = side(so, out, outC1, outC2);
+  if (inText !== null) changes.push({ start: si.start, end: si.end, text: inText, next: sides.incoming + 1 });
+  if (outText !== null) changes.push({ start: so.start, end: so.end, text: outText, next: sides.outgoing + 1 });
+  if (changes.length === 0) return d;
+  const text = apply(d, segs, changes);
+  const first = Math.min(sides.incoming, sides.outgoing);
+  const last = Math.max(sides.incoming, sides.outgoing);
+  // Segments between the two changed sides (at the start of a closed path) keep their index.
+  const between = last > first + 1 ? keepFollowing(text, segs, first + 1, comma, last) : text;
+  return keepFollowing(between, segs, last + 1, comma);
 }

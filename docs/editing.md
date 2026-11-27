@@ -28,6 +28,8 @@
 | Move | Drag, or arrow keys (Shift for 10 px) |
 | Resize | Drag a handle (rectangles, circles, ellipses, groups with a size) |
 | Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve control points (circles). A point takes its curve handles along, and a smooth point stays smooth when you drag one of its handles (hold `Alt` to make a corner). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text |
+| Bend a side | Select a path and drag one of its sides (the line itself, not the dot in its middle): the side becomes a curve through the spot you hold. A curve can be reshaped the same way. To move the whole path instead, hold `Ctrl` (`Cmd` on Mac) while dragging, or use the arrow keys. Arcs cannot be bent |
+| Corner or smooth | Double-click a point of a selected path, or right-click it: **Make smooth** / **Make corner**. Smooth gives the point two handles in a line, along the direction of the points on either side. Corner removes its handles; a side left with no handle becomes a straight line again. Not for the ends of an open path, or points next to an arc |
 | Delete | `Delete` or `Backspace` |
 | Copy, cut, paste | `Ctrl+C`, `Ctrl+X`, `Ctrl+V` (`Cmd` on Mac), or right-click. Shapes are copied as Zyxd text, so they also paste into the text editor or another drawing. Names already used get a number (`box` → `box1`) |
 | Duplicate | `Ctrl+D`, or right-click: a copy 10 px down and right, drawn on top |
@@ -70,6 +72,11 @@ path1 is path(d="M 20,100 C 20,100 70,40 100,40 C 130,40 180,100 180,100", fill=
 ```
 
 The `C` parts are the curves. Their numbers are the handles you pulled out. To change the curve later, select the path and drag its points (squares) or handles (circles).
+
+You can also draw only corners first, then add the curves:
+
+- **Bend a side:** select the path and drag a side. It becomes a curve through the spot you hold.
+- **Smooth a corner:** double-click a point. It gets two handles and the path runs smoothly through it. Double-click again to make it a corner.
 
 Made a wrong click? `Backspace` or `Ctrl+Z` (`Cmd+Z` on Mac) removes the last point, and you go on drawing. `Esc` stops: with 2 or more points, the path is kept as it is.
 

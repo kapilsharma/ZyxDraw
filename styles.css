@@ -616,6 +616,21 @@ body.zyxdraw-resizing-y * {
   opacity: 1;
 }
 
+/* A selected path's sides: drag to bend (issue #35). Invisible until hovered; Ctrl / Cmd drag moves. */
+.zyxdraw-side-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 10;
+  stroke-linecap: round;
+  pointer-events: stroke;
+  cursor: grab;
+}
+
+.zyxdraw-side-hit:hover {
+  stroke: var(--interactive-accent);
+  stroke-opacity: 0.25;
+}
+
 /* "+" beside each end of an open path or polyline: continue it with the pen (issue #34). */
 .zyxdraw-end-mark {
   fill: var(--background-primary);

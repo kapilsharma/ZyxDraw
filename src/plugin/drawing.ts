@@ -6,6 +6,9 @@
 import { Menu, Notice, Platform, setIcon } from "obsidian";
 import {
   allShapes,
+  bendableSides,
+  bendSide,
+  bentPointsText,
   canAddPoints,
   continuePath,
   copyText,
@@ -40,9 +43,11 @@ import {
   overlayTransforms,
   penPathData,
   pointHandles,
+  pointKind,
   previewGeometry,
   reorderShape,
   resizeShape,
+  setPointSmooth,
   sideHandles,
   type Box,
   type PenNode,
@@ -97,7 +102,7 @@ const DRAG_THRESHOLD = 3;
 
 interface DragState {
   /** `many`: moving several selected shapes; `marquee`: dragging a box to select shapes. */
-  kind: "move" | "resize" | "point" | "insert" | "many" | "marquee";
+  kind: "move" | "resize" | "point" | "insert" | "bend" | "many" | "marquee";
   /** Kind "many": the shapes moved, and their elements with the transform they had. */
   paths?: string[];
   els?: { el: SVGGraphicsElement; transform: string | null }[];
@@ -108,7 +113,7 @@ interface DragState {
   handle?: Handle;
   /** Point index (kind "point"). */
   point?: number;
-  /** Side a new point is added on (kind "insert": dragging a side's middle dot). */
+  /** Side a new point is added on (kind "insert": dragging a side's middle dot), or bent (kind "bend"). */
   side?: number;
   pointerId: number;
   /** Start in the drag's own coordinates (see `dragLayer`). */
@@ -1181,6 +1186,13 @@ export class DrawingEditor {
     const points = t && hasPoints(shape) ? pointHandles(t.scene, shape) : null;
     if (points) {
       for (const p of points) for (const q of p.guides) el("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y }, "zyxdraw-guide");
+      // A path's sides can be grabbed and bent (issue #35): an invisible wide line on each.
+      const bendable = t && bendableSides(t.scene, shape);
+      bendable?.curves.forEach((d, i) => {
+        if (!d) return;
+        const hit = el("path", { d, transform: `translate(${bendable.offset.x},${bendable.offset.y})` }, "zyxdraw-side-hit");
+        hit.dataset.bend = String(i);
+      });
       // Polygon / polyline / path: a dot in the middle of each side adds a point (click or drag).
       ((t && sideHandles(t.scene, shape)) ?? []).forEach((p, i) => {
         const m = el("circle", { cx: p.x, cy: p.y, r: size / 2.5 }, "zyxdraw-midpoint");
@@ -1316,6 +1328,18 @@ export class DrawingEditor {
       this.beginDrag(e, { kind: "insert", path: this.selected, side: Number(side), box: selectedBox, el, originalGeometry });
       return;
     }
+    const bend = on("data-bend");
+    if (bend !== undefined && this.selected && selectedBox) {
+      const el = this.elementFor(this.selected);
+      // Ctrl / Cmd held: move the whole path, as dragging it did before (issue #35).
+      if (e.ctrlKey || e.metaKey) {
+        this.beginDrag(e, { kind: "move", path: this.selected, box: selectedBox, el });
+        return;
+      }
+      const originalGeometry = GEOMETRY_ATTRS.map((attr) => ({ attr, value: el?.getAttribute(attr) ?? null }));
+      this.beginDrag(e, { kind: "bend", path: this.selected, side: Number(bend), box: selectedBox, el, originalGeometry });
+      return;
+    }
     const handle = on("data-handle") as Handle | undefined;
     if (handle && this.selected && selectedBox) {
       this.beginDrag(e, { kind: "resize", path: this.selected, handle, box: selectedBox, el: null });
@@ -1371,7 +1395,7 @@ export class DrawingEditor {
     } else if (d.kind === "insert") {
       const m = this.sideMiddle(d.path, d.side!);
       anchor = m ? { x: m.x, y: m.y } : { x: null, y: null };
-    } else if (d.kind === "marquee") {
+    } else if (d.kind === "marquee" || d.kind === "bend") {
       anchor = { x: null, y: null };
     }
     this.drag = {
@@ -1456,6 +1480,11 @@ export class DrawingEditor {
       this.layers?.mid.setAttribute("transform", `translate(${dx},${dy})`);
     } else if (d.kind === "resize") {
       this.drawSelectionBox(resizedBox(d.box, d.handle!, dx, dy), shape);
+    } else if (d.kind === "bend") {
+      // The grabbed spot follows the mouse; the side's curve is previewed on the drawing.
+      const text = bentPointsText(t.scene, shape, d.side!, d.start, dx, dy, this.fmt);
+      const geo = text !== null ? previewGeometry(t.scene, shape, text) : null;
+      if (geo && d.el) d.el.setAttribute(geo.attr, geo.value);
     } else if (d.kind === "insert") {
       const text = insertedPointsText(shape, d.side!, dx, dy, this.fmt);
       const geo = text !== null ? previewGeometry(t.scene, shape, text) : null;
@@ -1535,7 +1564,9 @@ export class DrawingEditor {
           ? resizeShape(t, d.path, resizedBox(d.box, d.handle!, dx, dy), opts)
           : d.kind === "insert"
             ? insertPoint(t, d.path, d.side!, dx, dy, this.fmt)
-            : movePoint(t, d.path, d.point!, dx, dy, { free: e.altKey });
+            : d.kind === "bend"
+              ? bendSide(t, d.path, d.side!, d.start, dx, dy, this.fmt)
+              : movePoint(t, d.path, d.point!, dx, dy, { free: e.altKey });
     if (edit.edits.length === 0) this.restore(d);
     else if (d.kind === "point" || d.kind === "insert") {
       // The new point is selected, and its numbers shown in the text.
@@ -1593,8 +1624,32 @@ export class DrawingEditor {
       return;
     }
     if (this.tool === "line") return;
+    // Double-click a point of the selected path: switch it between corner and smooth (issue #35).
+    const point = (e.target as Element | null)?.closest?.("[data-point]")?.getAttribute("data-point");
+    if (point !== undefined && point !== null && this.selected) {
+      this.toggleSmooth(Number(point));
+      return;
+    }
     const hit = this.shapeAt(e);
     if (hit) this.select(hit.path);
+  }
+
+  /** The kind of point `index` of the selected path: smooth, corner, or null (cannot switch). */
+  private selectedPointKind(index: number): "smooth" | "corner" | null {
+    const t = this.target();
+    const shape = t && this.selected ? allShapes(t.scene).find((s) => s.path === this.selected) : undefined;
+    return shape ? pointKind(shape, index) : null;
+  }
+
+  /** Makes point `index` of the selected path smooth or a corner (null: the other of what it is). */
+  private toggleSmooth(index: number, smooth?: boolean): void {
+    const path = this.selected;
+    const kind = this.selectedPointKind(index);
+    if (!path || !kind) return;
+    const on = smooth ?? kind === "corner";
+    // Handles are added or removed, so point numbers after this one change: select none.
+    this.selectedPoint = null;
+    this.run((t) => setPointSmooth(t, path, index, on, this.fmt));
   }
 
   // ---- menu and keyboard ------------------------------------------------------------------
@@ -1618,6 +1673,9 @@ export class DrawingEditor {
       const menu = new Menu();
       const end = this.selectedOpenEnds()?.ends.find((x) => x.point === Number(point));
       if (end) menu.addItem((i) => i.setTitle("Continue path").setIcon("pen-tool").onClick(() => this.startContinue(end.at)));
+      const kind = this.selectedPointKind(Number(point));
+      if (kind === "corner") menu.addItem((i) => i.setTitle("Make smooth").setIcon("spline").onClick(() => this.toggleSmooth(Number(point), true)));
+      if (kind === "smooth") menu.addItem((i) => i.setTitle("Make corner").setIcon("corner-down-right").onClick(() => this.toggleSmooth(Number(point), false)));
       menu.addItem((i) => i.setTitle("Delete point").setIcon("trash").onClick(() => this.deleteSelectedPoint()));
       menu.showAtMouseEvent(e);
       return;

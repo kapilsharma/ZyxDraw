@@ -9,7 +9,7 @@ import type { Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 import { shapeTransform, transformAbout } from "../transform";
 import { appendLine, blank, canEdit, editableShape, geometry, moveLineEnd, newShapeName, normalizeEdits, StatementEditor, type EditResult, type EditTarget, type TextEdit } from "./edit";
-import { continuePathText, deletePathNode, isEditablePath, openPathEnds, pathSides, penPathData, splitPathSide, type PenNode, type Pt } from "./path-nodes";
+import { bendPathSide, continuePathText, deletePathNode, isEditablePath, openPathEnds, pathNodeKind, pathSideCurves, pathSides, penPathData, setPathNodeSmooth, splitPathSide, type PenNode, type Pt } from "./path-nodes";
 
 export interface PointHandle {
   /** Position in frame coordinates, before rotate / scale (see `overlayTransforms`). */
@@ -378,6 +378,74 @@ function pointsInsert(value: string, side: number, closed: boolean, dx: number, 
   const between = n > 1 ? value.slice(t[1].end, t[2].start) || " " : " ";
   const at = t[2 * side + 1].end;
   return { start: at, end: at, insert: `${between}${fmt(x)}${within}${fmt(y)}` };
+}
+
+// ---- bending sides and corner / smooth points (issue #35) -------------------------------------
+
+/**
+ * The sides of a selected path that can be bent by dragging them, as path text in the path's
+ * own numbers (null for an arc), and where those numbers are drawn (`offset`, frame
+ * coordinates before rotate / scale). Null for other shapes.
+ */
+export function bendableSides(scene: Scene, shape: Shape): { curves: (string | null)[]; offset: { x: number; y: number } } | null {
+  if (shape.type !== "path" || !canAddPoints(shape)) return null;
+  const d = shape.attrs.get("d");
+  const g = geometry(scene, shape);
+  const curves = d?.value.t === "str" ? pathSideCurves(d.value.v) : null;
+  return curves && g ? { curves, offset: offset(shape, g.box) } : null;
+}
+
+/**
+ * Bends side `side` of a path (issue #35): the spot `grab` (frame coordinates, before rotate /
+ * scale) moves by (dx, dy) and the side becomes a curve through it.
+ */
+export function bendSide(target: EditTarget, path: string, side: number, grab: { x: number; y: number }, dx: number, dy: number, fmt: NumberFormat): EditResult {
+  return editPoints(target, path, (shape, value) => {
+    if (shape.type !== "path") return "only the sides of a path can be bent";
+    const g = geometry(target.scene, shape);
+    if (!g) return "this path is not drawn";
+    const off = offset(shape, g.box);
+    const d = bendPathSide(value, side, { x: grab.x - off.x, y: grab.y - off.y }, dx, dy, (n) => Number(fmt(n)));
+    return typeof d === "string" ? changed(value, d) : d.error;
+  });
+}
+
+/** The `d` text after `bendSide`, for a live preview while dragging; null if the side cannot be bent. */
+export function bentPointsText(scene: Scene, shape: Shape, side: number, grab: { x: number; y: number }, dx: number, dy: number, fmt: NumberFormat): string | null {
+  const sides = bendableSides(scene, shape);
+  const d = shape.attrs.get("d");
+  if (!sides || d?.value.t !== "str") return null;
+  const out = bendPathSide(d.value.v, side, { x: grab.x - sides.offset.x, y: grab.y - sides.offset.y }, dx, dy, (n) => Number(fmt(n)));
+  return typeof out === "string" ? out : null;
+}
+
+/** The node (point on the outline) of handle `index` of a path, or null for a curve handle. */
+function nodeOf(shape: Shape, index: number): number | null {
+  const parsed = rawHandles(shape);
+  const h = parsed?.handles[index];
+  if (!parsed || !h || h.kind !== "end") return null;
+  return parsed.handles.slice(0, index).filter((x) => x.kind === "end").length;
+}
+
+/**
+ * Whether point `index` of a path is smooth or a corner (issue #35); null when it cannot be
+ * switched (not a path, a curve handle, an end of an open path, next to an arc).
+ */
+export function pointKind(shape: Shape, index: number): "smooth" | "corner" | null {
+  if (shape.type !== "path" || !canAddPoints(shape)) return null;
+  const d = shape.attrs.get("d");
+  const node = nodeOf(shape, index);
+  return node === null || d?.value.t !== "str" ? null : pathNodeKind(d.value.v, node);
+}
+
+/** Makes point `index` of a path smooth or a corner (issue #35). */
+export function setPointSmooth(target: EditTarget, path: string, index: number, smooth: boolean, fmt: NumberFormat): EditResult {
+  return editPoints(target, path, (shape, value) => {
+    const node = shape.type === "path" ? nodeOf(shape, index) : null;
+    if (node === null) return "only points on the outline of a path can be made smooth or a corner";
+    const d = setPathNodeSmooth(value, node, smooth, (n) => Number(fmt(n)));
+    return typeof d === "string" ? changed(value, d) : d.error;
+  });
 }
 
 /** The smallest change from `before` to `after`: the text both share at the start and end is kept. */
