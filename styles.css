@@ -42,7 +42,7 @@
 
 /* ---- view layout and modes ----
  * Panels (issue #8): left panel (text) | center column = drawing area over the bottom panel
- * (Attributes) | right panel (Layers, issue #11). */
+ * (Attributes) | right panel (tabs: Layers, issue #11; Help, issue #42). */
 /* More specific than Obsidian's padding on a view's content. */
 .workspace-leaf-content .view-content.zyxdraw-view {
   padding: 0;
@@ -90,6 +90,76 @@
 
 .zyxdraw-right-panel.is-hidden {
   display: none;
+}
+
+/* Right panel tabs (issue #42): one view shown at a time. */
+.zyxdraw-right-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--size-2-1);
+  padding: var(--size-2-2) var(--size-4-2) 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.zyxdraw-right-tab {
+  padding: var(--size-2-1) var(--size-4-2);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.zyxdraw-right-tab:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.zyxdraw-right-tab.is-active {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  border-bottom-color: var(--interactive-accent);
+}
+
+.zyxdraw-layers.is-hidden,
+.zyxdraw-help.is-hidden {
+  display: none;
+}
+
+/* ---- Help (the Help tab of the right panel, issue #42) ---- */
+.zyxdraw-help {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--size-4-2) var(--size-4-3) var(--size-4-4);
+  font-size: var(--font-ui-small);
+}
+
+.zyxdraw-help-title {
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--size-2-2);
+}
+
+.zyxdraw-help-about {
+  color: var(--text-muted);
+  margin-bottom: var(--size-4-2);
+}
+
+.zyxdraw-help-steps {
+  margin: 0 0 var(--size-4-2);
+}
+
+.zyxdraw-help-steps dt {
+  font-weight: var(--font-semibold);
+  margin-top: var(--size-2-3);
+}
+
+.zyxdraw-help-steps dd {
+  margin: 0;
+  color: var(--text-muted);
 }
 
 /* Wrapping long lines (command "Toggle text wrapping"), enforced here as well in case a theme

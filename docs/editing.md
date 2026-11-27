@@ -8,7 +8,8 @@
   - **Left panel:** the text.
   - **Drawing area:** the drawing and its toolbar.
   - **Bottom panel**, under the drawing area: the **Attributes** of the selected shape. The **Attributes** button in the view header shows or hides it.
-  - **Right panel**: the **Layers**. The **Layers** button in the view header shows or hides it.
+  - **Right panel**: two tabs, **Layers** and **Help**. The **Layers and help** button in the view header shows or hides it, and the tab you were on is remembered.
+    - **Help** shows short help for the tool in use: what it is for, and what each click, drag and key does. It follows the tool you pick, but it never opens by itself: click the **Help** tab when you want it.
 - **Three views:** buttons in the view header, or the `ZyxDraw: Show ...` commands.
   - Text and drawing side by side (left panel and drawing area)
   - Text only (left panel)
@@ -43,6 +44,7 @@
 | Zoom | Toolbar, or `Ctrl` + mouse wheel |
 | Grid | Toolbar grid button: lines spaced to suit the zoom. While it is shown, moving, resizing and point dragging snap to it; hold `Alt` to drag freely |
 | Mouse coordinates | Status bar shows the mouse position over the drawing, in pixels and percent. With a group, custom shape or path selected, also in that shape's own numbers (what you type in `d` or `points`). Toolbar crosshair button turns it off |
+| Help for a tool | **Help** tab in the right panel: the tool in use, its keys and mouse actions. Toolbar buttons also have a short tooltip |
 | Undo / redo | `Ctrl+Z` / `Ctrl+Shift+Z` (also in the drawing) |
 
 Every drawing edit changes only the numbers it must in the text, keeps their unit (`10%` stays a percent), and is one undo step. Comments and formatting are kept. Dragging a shape that is anchored (`right-of=api 60`) along that axis replaces the anchor with a position, and a notice says so.

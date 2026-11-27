@@ -56,6 +56,7 @@ import {
 import { colorToHex, hasSyntaxErrors } from "./attributes";
 import type { Guide } from "./settings";
 import { uniqueIds } from "./svg";
+import { TOOL_HELP, type Tool } from "./tool-help";
 
 export interface DrawingHost {
   /** The text and its compile result, or null while the text is newer than the result. */
@@ -77,10 +78,11 @@ export interface DrawingHost {
   pointSelected(path: string, index: number): void;
   /** The active layer (issue #11): new shapes go into it. Null: at the end of the drawing. */
   activeLayer(): string | null;
+  /** The tool changed (issue #42: the Help tab follows it). */
+  toolChanged(tool: Tool): void;
 }
 
 type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
-type Tool = "select" | "hand" | "polygon" | "line" | "pen";
 /** Tools that draw a new shape with clicks. */
 const DRAWING_TOOLS: Tool[] = ["polygon", "line", "pen"];
 const HANDLES: Handle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
@@ -582,7 +584,9 @@ export class DrawingEditor {
     if (tool === "polygon" && !this.draft) this.draft = { points: [], mouse: null };
     if (tool === "line" && !this.lineDraft) this.lineDraft = { start: null, mouse: null, pressed: false };
     if (tool === "pen" && !this.pen) this.pen = { nodes: [], mouse: null, press: null };
+    const changed = tool !== this.tool;
     this.tool = tool;
+    if (changed) this.host.toolChanged(tool);
     for (const [t, b] of this.toolButtons) {
       b.toggleClass("is-active", t === tool);
       b.setAttribute("aria-pressed", String(t === tool));
@@ -771,24 +775,20 @@ export class DrawingEditor {
       return b;
     };
     const tools = bar.createDiv({ cls: "zyxdraw-tool-group", attr: { role: "group", "aria-label": "Tool" } });
-    this.toolButtons.set("select", button("mouse-pointer-2", "Select and move (V)", () => this.setTool("select"), tools));
-    this.toolButtons.set("hand", button("hand", "Hand: drag to scroll (H, or hold Space)", () => this.setTool("hand"), tools));
+    this.toolButtons.set("select", button("mouse-pointer-2", TOOL_HELP.select.tooltip, () => this.setTool("select"), tools));
+    this.toolButtons.set("hand", button("hand", TOOL_HELP.hand.tooltip, () => this.setTool("hand"), tools));
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });
     const toggle = (tool: Tool) => () => this.setTool(this.tool === tool ? "select" : tool);
     button("square", "Add rectangle", () => this.add("rect"));
     button("circle", "Add circle", () => this.add("circle"));
-    this.toolButtons.set("line", button("slash", "Draw a line (L): drag, or click both ends. Shift: 45° steps", toggle("line")));
+    this.toolButtons.set("line", button("slash", TOOL_HELP.line.tooltip, toggle("line")));
     this.toolButtons.set(
       "polygon",
-      button("pentagon", "Draw a polygon (P): click to place points, click the first point or press Enter to finish", toggle("polygon")),
+      button("pentagon", TOOL_HELP.polygon.tooltip, toggle("polygon")),
     );
     this.toolButtons.set(
       "pen",
-      button(
-        "pen-tool",
-        "Draw a path (B): click for a corner, drag for a curve. Click the first point to close, or press Enter / double-click to leave it open",
-        toggle("pen"),
-      ),
+      button("pen-tool", TOOL_HELP.pen.tooltip, toggle("pen")),
     );
     button("type", "Add text", () => this.add("text"));
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });

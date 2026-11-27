@@ -33,8 +33,9 @@ import { layerToggles, layerTracking, setLayers } from "./layers";
 import { LOGO_ICON } from "./logo";
 import { AttributesForm } from "./attributes";
 import { LayersView } from "./layer-panel";
+import { HelpView } from "./help-panel";
 import { ConfirmModal } from "./confirm";
-import { DEFAULT_SETTINGS } from "./settings";
+import { DEFAULT_SETTINGS, RIGHT_PANEL_TABS, type RightPanelTab } from "./settings";
 import { createSplitter } from "./splitter";
 import { compileInVault } from "./host";
 import { zyxLanguageSupport } from "./language";
@@ -79,10 +80,13 @@ export class ZyxView extends TextFileView {
   private bottomPanel: HTMLElement | null = null;
   private attributesButton: HTMLElement | null = null;
   private bottomSplitter: HTMLElement | null = null;
-  /** Right of the drawing area. Today it shows the Layers (issue #11). */
+  /** Right of the drawing area, with tabs: Layers (issue #11) and Help (issue #42). */
   private rightPanel: HTMLElement | null = null;
   private rightSplitter: HTMLElement | null = null;
   private layersView: LayersView | null = null;
+  private helpView: HelpView | null = null;
+  private rightTab: RightPanelTab;
+  private readonly tabButtons = new Map<RightPanelTab, HTMLElement>();
   private layersButton: HTMLElement | null = null;
   private layersVisible: boolean;
   /** New shapes go into this layer. Follows the selection; kept for this open drawing only. */
@@ -120,6 +124,7 @@ export class ZyxView extends TextFileView {
     this.mode = plugin.settings.defaultMode;
     this.bottomPanelVisible = plugin.settings.showProperties;
     this.layersVisible = plugin.settings.showLayers;
+    this.rightTab = (RIGHT_PANEL_TABS as readonly string[]).includes(plugin.settings.rightPanelTab) ? plugin.settings.rightPanelTab : "layers";
   }
 
   getViewType(): string {
@@ -139,7 +144,7 @@ export class ZyxView extends TextFileView {
     this.contentEl.empty();
     this.contentEl.addClass("zyxdraw-view");
     // Panels (issue #8): left panel (text), then a column with the drawing area and the bottom
-    // panel (Attributes) under it, then the right panel (Layers, issue #11).
+    // panel (Attributes) under it, then the right panel (tabs: Layers, issue #11; Help, issue #42).
     const leftPanel = this.contentEl.createDiv({ cls: "zyxdraw-left-panel" });
     const center = this.contentEl.createDiv({ cls: "zyxdraw-center" });
     this.drawing = new DrawingEditor(center, {
@@ -159,6 +164,7 @@ export class ZyxView extends TextFileView {
       showCoordinates: (text) => this.plugin.showCoordinates(text),
       pointSelected: (path, index) => this.followPoint(path, index),
       activeLayer: () => this.activeLayer,
+      toolChanged: (tool) => this.helpView?.setTool(tool),
     });
     this.bottomPanel = center.createDiv({ cls: "zyxdraw-bottom-panel" });
     this.attributes = new AttributesForm(this.bottomPanel, {
@@ -169,6 +175,7 @@ export class ZyxView extends TextFileView {
     });
     this.problemsEl = center.createDiv({ cls: "zyxdraw-problems" });
     this.rightPanel = this.contentEl.createDiv({ cls: "zyxdraw-right-panel" });
+    this.addRightTabs(this.rightPanel);
     this.layersView = new LayersView(this.rightPanel, {
       current: () => this.current(),
       activeLayer: () => this.activeLayer,
@@ -183,6 +190,7 @@ export class ZyxView extends TextFileView {
       delete: (path) => this.editChecked((t) => deleteShape(t, path), "Delete", "Delete anyway"),
       move: (path, place) => this.editChecked((t) => moveShapeTo(t, path, place), "Move", "Move anyway"),
     });
+    this.helpView = new HelpView(this.rightPanel);
     this.addDrawingHotkeys();
     this.addSplitters(leftPanel, center);
     const refit = debounce(() => {
@@ -207,6 +215,8 @@ export class ZyxView extends TextFileView {
     this.attributes = null;
     this.bottomPanel = null;
     this.layersView = null;
+    this.helpView = null;
+    this.tabButtons.clear();
     this.rightPanel = null;
     this.problemsEl = null;
   }
@@ -329,7 +339,7 @@ export class ZyxView extends TextFileView {
     };
     this.rightSplitter = createSplitter(this.contentEl, right, {
       axis: "x",
-      label: "Drag to resize the layers",
+      label: "Drag to resize the right panel",
       container: () => this.contentEl,
       onMove: (f) => {
         s.rightPanelWidth = clamp(1 - f, 0.1, 0.5);
@@ -361,15 +371,48 @@ export class ZyxView extends TextFileView {
     this.app.workspace.requestSaveLayout();
   }
 
-  // ---- right panel (Layers) ---------------------------------------------------------------
+  // ---- right panel (Layers and Help) -------------------------------------------------------
+
+  /** One tab button per view of the right panel, above the views. */
+  private addRightTabs(panel: HTMLElement): void {
+    const LABEL: Record<RightPanelTab, string> = { layers: "Layers", help: "Help" };
+    const bar = panel.createDiv({ cls: "zyxdraw-right-tabs", attr: { role: "tablist", "aria-label": "Right panel" } });
+    for (const tab of RIGHT_PANEL_TABS) {
+      const b = bar.createEl("button", { cls: "zyxdraw-right-tab", text: LABEL[tab], attr: { role: "tab", type: "button" } });
+      b.addEventListener("click", () => this.setRightTab(tab));
+      this.tabButtons.set(tab, b);
+    }
+  }
+
+  /** Shows a tab of the right panel. Only a click does this: the panel never switches tabs by itself. */
+  setRightTab(tab: RightPanelTab): void {
+    this.rightTab = tab;
+    this.showRightPanel(this.layersVisible && !this.isLibrary());
+    if (this.plugin.settings.rightPanelTab !== tab) {
+      this.plugin.settings.rightPanelTab = tab;
+      void this.plugin.saveSettings();
+    }
+    this.app.workspace.requestSaveLayout();
+  }
+
+  /** Shows or hides the right panel, with the current tab's view in it. */
+  private showRightPanel(shown: boolean): void {
+    this.rightPanel?.toggleClass("is-hidden", !shown);
+    this.rightSplitter?.toggleClass("is-hidden", !shown);
+    for (const [tab, b] of this.tabButtons) {
+      b.toggleClass("is-active", tab === this.rightTab);
+      b.setAttribute("aria-selected", String(tab === this.rightTab));
+    }
+    this.layersView?.el.toggleClass("is-hidden", this.rightTab !== "layers");
+    this.helpView?.el.toggleClass("is-hidden", this.rightTab !== "help");
+    this.layersView?.setShown(shown && this.rightTab === "layers");
+    this.helpView?.setShown(shown && this.rightTab === "help");
+  }
 
   setLayersVisible(visible: boolean): void {
     this.layersVisible = visible;
     // A library has no Layers: the panel stays hidden, and the setting is kept for drawings.
-    const shown = visible && !this.isLibrary();
-    this.rightPanel?.toggleClass("is-hidden", !shown);
-    this.rightSplitter?.toggleClass("is-hidden", !shown);
-    this.layersView?.setShown(shown);
+    this.showRightPanel(visible && !this.isLibrary());
     this.layersButton?.toggleClass("is-active", visible);
     this.layersButton?.setAttribute("aria-pressed", String(visible));
     if (this.plugin.settings.showLayers !== visible) {
@@ -451,8 +494,8 @@ export class ZyxView extends TextFileView {
     group.parentElement?.insertBefore(props, group);
     this.attributesButton = props;
 
-    // Layers button (shows or hides the right panel), left of the Attributes button.
-    const layersButton = this.addAction("layers", "Layers", () => this.setLayersVisible(!this.layersVisible));
+    // Layers and help button (shows or hides the right panel), left of the Attributes button.
+    const layersButton = this.addAction("layers", "Layers and help", () => this.setLayersVisible(!this.layersVisible));
     layersButton.addClass("zyxdraw-layers-button");
     group.parentElement?.insertBefore(layersButton, props);
     this.layersButton = layersButton;
@@ -470,15 +513,17 @@ export class ZyxView extends TextFileView {
   }
 
   override getState(): Record<string, unknown> {
-    return { ...super.getState(), mode: this.mode, properties: this.bottomPanelVisible, layers: this.layersVisible }; // "properties": key kept so saved layouts still load
+    return { ...super.getState(), mode: this.mode, properties: this.bottomPanelVisible, layers: this.layersVisible, rightTab: this.rightTab }; // "properties": key kept so saved layouts still load
   }
 
   override async setState(state: unknown, result: ViewStateResult): Promise<void> {
-    const s = state as { mode?: unknown; properties?: unknown; layers?: unknown } | null;
+    const s = state as { mode?: unknown; properties?: unknown; layers?: unknown; rightTab?: unknown } | null;
     const mode = s?.mode;
     if (typeof mode === "string" && (MODES as string[]).includes(mode)) this.setMode(mode as ViewMode);
     if (typeof s?.properties === "boolean" && s.properties !== this.bottomPanelVisible) this.setBottomPanelVisible(s.properties);
     if (typeof s?.layers === "boolean" && s.layers !== this.layersVisible) this.setLayersVisible(s.layers);
+    const tab = s?.rightTab;
+    if (typeof tab === "string" && tab !== this.rightTab && (RIGHT_PANEL_TABS as readonly string[]).includes(tab)) this.setRightTab(tab as RightPanelTab);
     await super.setState(state, result);
   }
 
@@ -653,10 +698,7 @@ export class ZyxView extends TextFileView {
     this.drawing?.setLibrary(on);
     this.drawing?.setMessage(null);
     this.layersButton?.toggle(!on);
-    const shown = this.layersVisible && !on;
-    this.rightPanel?.toggleClass("is-hidden", !shown);
-    this.rightSplitter?.toggleClass("is-hidden", !shown);
-    this.layersView?.setShown(shown);
+    this.showRightPanel(this.layersVisible && !on);
   }
 
   /** Library: the text cursor is on a line of `preview()` or in a definition: select that cell. */
