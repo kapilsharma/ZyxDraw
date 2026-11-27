@@ -70,10 +70,10 @@ describe("bending a side", () => {
     expect(bend("M 0,0 L 30,0 S 60,10 60,0", 0, { x: 15, y: 0 }, 0, 30)).toBe("M 0,0 C 10,40 20,40 30,0 C 30,0 60,10 60,0");
   });
 
-  it("does not bend arcs", () => {
-    const { t, shape } = load(path("M 0,0 A 10 10 0 0 1 20,0"));
+  it("does not bend arcs that are part of an ellipse (circle arcs: #39)", () => {
+    const { t, shape } = load(path("M 0,0 A 10 5 0 0 1 20,0"));
     expect(bendableSides(t.scene, shape)!.curves).toEqual([null]);
-    expect(bendSide(t, "p", 0, { x: 10, y: -10 }, 0, 5, fmt).notices[0]).toMatch(/arc cannot be bent/);
+    expect(bendSide(t, "p", 0, { x: 10, y: -10 }, 0, 5, fmt).notices[0]).toMatch(/part of an ellipse cannot be bent/);
   });
 
   it("measures the grab from where the path is drawn (a path in a moved group)", () => {

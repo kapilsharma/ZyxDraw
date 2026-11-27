@@ -38,13 +38,14 @@ interface Segment {
 
 /**
  * Which numbers a handle moves: index into the segment list, argument index, axis; `sign` -1
- * moves the number the other way (an `S` curve's mirrored handle moves the handle it mirrors).
+ * moves the number the other way (an `S` or `T` curve's mirrored handle moves the handle it
+ * mirrors).
  */
 interface Target {
   seg: number;
   arg: number;
   axis: 0 | 1;
-  sign?: -1;
+  sign?: 1 | -1;
 }
 
 interface RawHandle {
@@ -796,6 +797,8 @@ interface SegInfo {
   /** First / second control point of a `C` (`S`: the second only). */
   c1?: Ctrl;
   c2?: Ctrl;
+  /** The control point of a `Q`, or the mirrored one of a `T` after a `Q` / `T` (issue #39). */
+  q?: Ctrl;
   /** The end point's handle (-1 for `Z`). */
   endHandle: number;
 }
@@ -898,7 +901,17 @@ function pathHandles(segments: Segment[]): RawHandle[] {
       }
       si.c2 = control(0, [end]);
     } else if (s.upper === "Q") {
-      control(0, [start, end]);
+      si.q = control(0, [start, end]);
+    } else if (s.upper === "T") {
+      // Its control point has no numbers: it mirrors the one before about the start (issue
+      // #39). Dragging it moves the `Q` it comes from, so every `T` after that `Q` changes.
+      const before = info[seg - 1]?.q;
+      if (before) {
+        const at = { x: 2 * start.x - before.at.x, y: 2 * start.y - before.at.y };
+        const flipped = before.targets.map((t) => ({ ...t, sign: t.sign === -1 ? (1 as const) : (-1 as const) }));
+        handles.push({ ...at, kind: "control", guides: [start, end], targets: flipped, seg, isEnd: false });
+        si.q = { at, targets: flipped, handle: handles.length - 1 };
+      }
     }
     handles.push({ ...end, kind: "end", guides: [], targets: endTargets, seg, isEnd: true });
     si.endHandle = handles.length - 1;

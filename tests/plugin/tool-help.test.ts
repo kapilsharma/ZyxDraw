@@ -47,7 +47,7 @@ describe("tool help", () => {
 
   it("tells how to make a curve and take back a point with the pen (issue #33)", () => {
     const pen = TOOL_HELP.pen;
-    expect(pen.hint).toBe("Click: corner · Press and drag: curve · Backspace: remove last point · Enter: finish · Esc: stop");
+    expect(pen.hint).toBe("Click: corner · Press and drag: curve · Shift: arc · Backspace: remove last point · Enter: finish · Esc: stop");
     expect(pen.tooltip).toContain("press and drag for a curve");
     expect(pen.tooltip).toContain("Backspace");
     expect(pen.steps.map((s) => s.how)).toEqual(expect.arrayContaining(["Press and drag", "Backspace or Ctrl+Z", "Esc"]));
