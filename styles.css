@@ -369,10 +369,34 @@ body.zyxdraw-resizing-y * {
 
 /* ---- drawing ---- */
 .zyxdraw-drawing-area {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* Hint line while a drawing tool is in use (issue #33): over the bottom of the drawing, never
+   in the way of the mouse. */
+.zyxdraw-tool-hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--size-4-2);
+  transform: translateX(-50%);
+  max-width: calc(100% - var(--size-4-4));
+  padding: var(--size-2-2) var(--size-4-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.zyxdraw-tool-hint.is-hidden {
+  display: none;
 }
 
 .zyxdraw-toolbar {

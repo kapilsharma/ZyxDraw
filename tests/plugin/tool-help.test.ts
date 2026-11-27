@@ -38,6 +38,21 @@ describe("tool help", () => {
     for (const tool of TOOLS) expect(keys.get(tool), tool).toBe(TOOL_HELP[tool].key);
   });
 
+  it("has a hint line for each drawing tool, and only for those (issue #33)", () => {
+    const list = drawing.match(/const DRAWING_TOOLS: Tool\[\] = \[([^\]]*)\]/)?.[1] ?? "";
+    const drawingTools = [...list.matchAll(/"(\w+)"/g)].map((m) => m[1]).sort();
+    expect(drawingTools.length).toBeGreaterThan(0);
+    expect(TOOLS.filter((t) => TOOL_HELP[t].hint).sort()).toEqual(drawingTools);
+  });
+
+  it("tells how to make a curve and take back a point with the pen (issue #33)", () => {
+    const pen = TOOL_HELP.pen;
+    expect(pen.hint).toBe("Click: corner · Press and drag: curve · Backspace: remove last point · Enter: finish · Esc: stop");
+    expect(pen.tooltip).toContain("press and drag for a curve");
+    expect(pen.tooltip).toContain("Backspace");
+    expect(pen.steps.map((s) => s.how)).toEqual(expect.arrayContaining(["Press and drag", "Backspace or Ctrl+Z", "Esc"]));
+  });
+
   it("links to a section that exists in the editing guide", () => {
     const anchor = DOCS_URL.split("#")[1];
     const slugs = [...read("docs/editing.md").matchAll(/^#+ (.+)$/gm)].map((m) => m[1].trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-"));

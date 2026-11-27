@@ -37,8 +37,8 @@
 | Find in text | Right-click: Show in text |
 | Add a shape | Toolbar: rectangle, circle, text |
 | Draw a line | Toolbar line button (`L`): drag, or click both ends. Hold `Shift` for 45° steps |
-| Draw a polygon | Toolbar polygon button (`P`): click to place points, click the first point or press `Enter` to finish |
-| Draw a path (pen) | Toolbar pen button (`B`): click for a corner, press and drag for a smooth curve. Click the first point to close the shape, or press `Enter` (or double-click) to leave it open. `Backspace` removes the last point |
+| Draw a polygon | Toolbar polygon button (`P`): click to place points, click the first point or press `Enter` to finish. `Backspace` or `Ctrl+Z` removes the last point |
+| Draw a path (pen) | Toolbar pen button (`B`): click for a corner; for a curve, keep the mouse button pressed and drag. Click the first point to close the shape, or press `Enter` (or double-click) to leave it open. `Backspace` or `Ctrl+Z` removes the last point. `Esc` stops: with 2 or more points the path is kept, open. See [Drawing curves](#drawing-curves) |
 | Add / delete points | On a selected polygon, polyline or path, click or drag the dot in the middle of a side to add a point (on a curve, it splits the curve without changing its shape); click a point and press `Delete` to remove it |
 | Attributes | Attributes button in the view header: a form under the drawing for the selected shape, or the canvas when nothing is selected. Press Enter or leave the field to apply; clear a field to remove the attribute |
 | Zoom | Toolbar, or `Ctrl` + mouse wheel |
@@ -48,6 +48,29 @@
 | Undo / redo | `Ctrl+Z` / `Ctrl+Shift+Z` (also in the drawing) |
 
 Every drawing edit changes only the numbers it must in the text, keeps their unit (`10%` stays a percent), and is one undo step. Comments and formatting are kept. Dragging a shape that is anchored (`right-of=api 60`) along that axis replaces the anchor with a position, and a notice says so.
+
+While the line, polygon or pen tool is in use, a hint line at the bottom of the drawing area shows its keys. The **Help** tab in the right panel explains each tool in more detail.
+
+### Drawing curves
+
+The pen tool (`B`) draws curves. The trick is to **keep the mouse button pressed**: a click makes a corner, and pressing then dragging makes a smooth point. The further you drag, the rounder the curve.
+
+For example, to draw a hill:
+
+1. Press `B`.
+2. Click at the bottom left: the start.
+3. Press at the top, keep the button down, and drag to the right. Let go: the curve bends over the top.
+4. Click at the bottom right, then press `Enter`.
+
+ZyxDraw adds one line to the text:
+
+```zyxd
+path1 is path(d="M 20,100 C 20,100 70,40 100,40 C 130,40 180,100 180,100", fill=none, stroke=black)
+```
+
+The `C` parts are the curves. Their numbers are the handles you pulled out. To change the curve later, select the path and drag its points (squares) or handles (circles).
+
+Made a wrong click? `Backspace` or `Ctrl+Z` (`Cmd+Z` on Mac) removes the last point, and you go on drawing. `Esc` stops: with 2 or more points, the path is kept as it is.
 
 ## Commands
 

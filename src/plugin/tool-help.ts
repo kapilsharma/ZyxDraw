@@ -1,6 +1,6 @@
 /**
- * Help for each tool of the drawing area (issue #42): one table, read by the toolbar tooltips
- * and the Help tab in the right panel (and later the hint line while drawing, issue #33).
+ * Help for each tool of the drawing area (issue #42): one table, read by the toolbar tooltips,
+ * the Help tab in the right panel, and the hint line shown while drawing (issue #33).
  * Plain data with no Obsidian imports, so a test can check that every tool has its help.
  * Write `Ctrl` for the command key: the Help tab shows `Cmd` on Mac.
  */
@@ -22,6 +22,8 @@ export interface ToolHelp {
   key: string;
   /** The toolbar button's tooltip. */
   tooltip: string;
+  /** Drawing tools: the short line shown in the drawing area while the tool is in use (issue #33). */
+  hint?: string;
   /** One or two sentences on what the tool is for. */
   about: string;
   /** Mouse actions and keys, most used first. */
@@ -65,6 +67,7 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
     name: "Line",
     key: "L",
     tooltip: "Draw a line (L): drag, or click both ends. Shift: 45° steps",
+    hint: "Drag, or click both ends · Shift: 45° steps · Esc: stop",
     about: "Draw a straight line.",
     steps: [
       { how: "Drag", does: "Draw a line from where you press to where you let go" },
@@ -77,13 +80,14 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
   polygon: {
     name: "Polygon",
     key: "P",
-    tooltip: "Draw a polygon (P): click to place points, click the first point or press Enter to finish",
+    tooltip: "Draw a polygon (P): click to place points, click the first point or press Enter to finish. Backspace removes the last point",
+    hint: "Click: place a point · Click the first point or Enter: finish · Backspace: remove last point · Esc: drop points",
     about: "Draw a closed shape with straight sides, one point at a time.",
     steps: [
       { how: "Click", does: "Place a point" },
       { how: "Click the first point", does: "Finish the shape" },
-      { how: "Enter", does: "Finish the shape" },
-      { how: "Backspace", does: "Remove the last point" },
+      { how: "Enter or double-click", does: "Finish the shape" },
+      { how: "Backspace or Ctrl+Z", does: "Remove the last point" },
       { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
       { how: "Esc", does: "Drop all points. Press again to leave the tool" },
     ],
@@ -91,16 +95,17 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
   pen: {
     name: "Pen",
     key: "B",
-    tooltip: "Draw a path (B): click for a corner, drag for a curve. Click the first point to close, or press Enter / double-click to leave it open",
+    tooltip: "Draw a path (B): click for a corner, press and drag for a curve. Backspace removes the last point. Click the first point to close, or press Enter / double-click to leave it open",
+    hint: "Click: corner · Press and drag: curve · Backspace: remove last point · Enter: finish · Esc: stop",
     about: "Draw a path with corners and smooth curves. To make a curve, keep the mouse button pressed and drag.",
     steps: [
       { how: "Click", does: "Place a corner" },
       { how: "Press and drag", does: "Place a smooth point: dragging pulls out its curve" },
       { how: "Click the first point", does: "Close the shape" },
       { how: "Enter or double-click", does: "Finish, leaving the path open" },
-      { how: "Backspace", does: "Remove the last point" },
+      { how: "Backspace or Ctrl+Z", does: "Remove the last point" },
       { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
-      { how: "Esc", does: "Drop all points. Press again to leave the tool" },
+      { how: "Esc", does: "Stop: with 2 or more points, the path is kept, open. With fewer, the tool is left" },
     ],
   },
 };

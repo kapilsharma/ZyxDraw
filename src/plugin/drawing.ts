@@ -56,7 +56,7 @@ import {
 import { colorToHex, hasSyntaxErrors } from "./attributes";
 import type { Guide } from "./settings";
 import { uniqueIds } from "./svg";
-import { TOOL_HELP, type Tool } from "./tool-help";
+import { TOOL_HELP, forPlatform, type Tool } from "./tool-help";
 
 export interface DrawingHost {
   /** The text and its compile result, or null while the text is newer than the result. */
@@ -203,6 +203,8 @@ export class DrawingEditor {
    */
   private library = false;
   private messageEl: HTMLElement | null = null;
+  /** While a drawing tool is in use: its keys, in one line over the bottom of the drawing area (issue #33). */
+  private readonly hintEl: HTMLElement;
 
   constructor(
     parent: HTMLElement,
@@ -211,6 +213,7 @@ export class DrawingEditor {
     this.el = parent.createDiv({ cls: "zyxdraw-drawing-area" });
     this.buildToolbar(this.el.createDiv({ cls: "zyxdraw-toolbar" }));
     this.stage = this.el.createDiv({ cls: "zyxdraw-stage", attr: { tabindex: "0" } });
+    this.hintEl = this.el.createDiv({ cls: "zyxdraw-tool-hint is-hidden", attr: { "aria-live": "polite" } });
 
     this.stage.addEventListener("pointerdown", (e) => this.onPointerDown(e));
     this.stage.addEventListener("pointermove", (e) => {
@@ -592,6 +595,14 @@ export class DrawingEditor {
       b.setAttribute("aria-pressed", String(t === tool));
     }
     this.updateCursor();
+    this.updateHint();
+  }
+
+  /** Shows the hint line of the drawing tool in use, or hides it. */
+  private updateHint(): void {
+    const hint = this.library ? undefined : TOOL_HELP[this.tool].hint;
+    this.hintEl.toggleClass("is-hidden", !hint);
+    this.hintEl.setText(hint ? forPlatform(hint, Platform.isMacOS) : "");
   }
 
   private handActive(): boolean {
@@ -693,6 +704,7 @@ export class DrawingEditor {
     this.library = on;
     this.el.toggleClass("is-library", on);
     if (on) this.setTool("select");
+    this.updateHint();
     this.drawOverlay();
   }
 
@@ -1560,8 +1572,25 @@ export class DrawingEditor {
     menu.showAtMouseEvent(e);
   }
 
+  /** Pen or polygon: takes back the last point placed. False when nothing is being drawn. */
+  private removeLastPoint(): boolean {
+    if (this.tool === "pen" && this.pen && this.pen.nodes.length > 0) {
+      this.pen.nodes.pop();
+      this.pen.press = null;
+    } else if (this.tool === "polygon" && this.draft && this.draft.points.length > 0) {
+      this.draft.points.pop();
+    } else return false;
+    this.renderDraft();
+    return true;
+  }
+
   private onKeyDown(e: KeyboardEvent): void {
     const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && this.removeLastPoint()) {
+      // While drawing, undo takes back the last point placed, like Backspace (issue #33).
+      e.preventDefault();
+      return;
+    }
     if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
       if (e.shiftKey) this.host.redo();
@@ -1623,17 +1652,15 @@ export class DrawingEditor {
       const pen = this.pen;
       if (e.key === "Enter") this.finishPen(false);
       else if (e.key === "Escape") {
-        // First Escape drops the points placed, the second leaves the tool.
-        if (pen.nodes.length > 0) {
-          pen.nodes = [];
-          pen.press = null;
-        } else this.setTool("select");
-        this.renderDraft();
-      } else if (e.key === "Backspace" || e.key === "Delete") {
-        pen.nodes.pop();
-        pen.press = null;
-        this.renderDraft();
-      } else return;
+        // Escape stops (issue #33): with 2 or more points the path is kept, open, so a wrong
+        // click never costs the whole path. With fewer, it leaves the tool.
+        if (pen.nodes.length >= 2) this.finishPen(false);
+        else {
+          this.setTool("select");
+          this.renderDraft();
+        }
+      } else if (e.key === "Backspace" || e.key === "Delete") this.removeLastPoint();
+      else return;
       e.preventDefault();
       return;
     }
@@ -1644,10 +1671,8 @@ export class DrawingEditor {
         if (this.draft.points.length > 0) this.draft.points = [];
         else this.setTool("select");
         this.renderDraft();
-      } else if (e.key === "Backspace" || e.key === "Delete") {
-        this.draft.points.pop();
-        this.renderDraft();
-      } else return;
+      } else if (e.key === "Backspace" || e.key === "Delete") this.removeLastPoint();
+      else return;
       e.preventDefault();
       return;
     }
