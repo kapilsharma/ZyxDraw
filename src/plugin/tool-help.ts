@@ -28,10 +28,20 @@ export interface ToolHelp {
   about: string;
   /** Mouse actions and keys, most used first. */
   steps: HelpStep[];
+  /** Where the Help tab's "More in the docs" link goes, when not `DOCS_URL`. */
+  docs?: string;
 }
 
 /** Where the full help is: the editing guide, section "Editing in the drawing area". */
 export const DOCS_URL = "https://github.com/kapilsharma/ZyxDraw/blob/main/docs/editing.md#editing-in-the-drawing-area";
+
+/** The guide to drawing and editing paths, for the pen and curve tools. */
+export const PATHS_DOCS_URL = "https://github.com/kapilsharma/ZyxDraw/blob/main/docs/paths.md";
+
+/** Where the full help for `tool` is. */
+export function docsUrl(tool: Tool): string {
+  return TOOL_HELP[tool].docs ?? DOCS_URL;
+}
 
 export const TOOL_HELP: Record<Tool, ToolHelp> = {
   select: {
@@ -111,6 +121,7 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
       { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
       { how: "Esc", does: "Stop: with 2 or more points, the path is kept, open. With fewer, the tool is left" },
     ],
+    docs: `${PATHS_DOCS_URL}#drawing-with-the-pen`,
   },
   curve: {
     name: "Curve",
@@ -126,6 +137,7 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
       { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
       { how: "Esc", does: "Stop: with 2 or more points, the curve is kept, open. With fewer, the tool is left" },
     ],
+    docs: `${PATHS_DOCS_URL}#drawing-with-the-curve-tool`,
   },
 };
 

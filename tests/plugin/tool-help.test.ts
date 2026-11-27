@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DOCS_URL, TOOLS, TOOL_HELP, forPlatform } from "../../src/plugin/tool-help";
+import { TOOLS, TOOL_HELP, docsUrl, forPlatform } from "../../src/plugin/tool-help";
 
 const read = (path: string) => readFileSync(resolve(__dirname, "../..", path), "utf8");
 const drawing = read("src/plugin/drawing.ts");
@@ -53,10 +53,14 @@ describe("tool help", () => {
     expect(pen.steps.map((s) => s.how)).toEqual(expect.arrayContaining(["Press and drag", "Backspace or Ctrl+Z", "Esc"]));
   });
 
-  it("links to a section that exists in the editing guide", () => {
-    const anchor = DOCS_URL.split("#")[1];
-    const slugs = [...read("docs/editing.md").matchAll(/^#+ (.+)$/gm)].map((m) => m[1].trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-"));
-    expect(slugs).toContain(anchor);
+  it("links each tool to a section that exists in the docs: the pen and curve tools to the paths guide", () => {
+    for (const tool of TOOLS) {
+      const [url, anchor] = docsUrl(tool).split("#");
+      const file = /\/blob\/main\/(docs\/[\w-]+\.md)$/.exec(url)?.[1];
+      expect(file, tool).toBe(tool === "pen" || tool === "curve" ? "docs/paths.md" : "docs/editing.md");
+      const slugs = [...read(file!).matchAll(/^#+ (.+)$/gm)].map((m) => m[1].trim().toLowerCase().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-"));
+      expect(slugs, tool).toContain(anchor);
+    }
   });
 
   it("uses the locked terms", () => {
