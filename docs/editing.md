@@ -106,6 +106,14 @@ ZyxDraw uses the system clipboard only when you ask it to:
 
 Nothing is read in the background, and nothing leaves your device.
 
+### Files ZyxDraw reads
+
+ZyxDraw never lists all the files in your vault. It reads:
+
+- the drawing or library you open, and the drawings shown in your notes;
+- the libraries a drawing imports, looked up by name in the drawing's folder and in the library folder from the settings;
+- when you create a drawing or library, only the folder it goes into, to check that the name is free.
+
 ## Settings
 
 - Default view (split, text, drawing).

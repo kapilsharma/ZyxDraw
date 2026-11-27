@@ -105,7 +105,7 @@ To install by hand instead, download `main.js`, `manifest.json` and `styles.css`
 
 ## Privacy
 
-ZyxDraw works offline and sends nothing anywhere. It uses the clipboard only when you copy, cut or paste shapes, or choose **Copy as SVG / PNG**.
+ZyxDraw works offline and sends nothing anywhere. It uses the clipboard only when you copy, cut or paste shapes, or choose **Copy as SVG / PNG**. It never lists the files of your vault: it opens the drawings you open, the libraries they import (by name, in their own folder or the library folder), and, when you create a file, looks only in the folder it goes into.
 
 ## Contributing
 
