@@ -49,6 +49,7 @@ import {
   resizeShape,
   setPointSmooth,
   sideHandles,
+  stepsOf,
   type Box,
   type PenNode,
   type CompileResult,
@@ -1156,6 +1157,41 @@ export class DrawingEditor {
     const mid = group(outer, "");
     this.layers = { outer, mid, inner: group(mid, tr.own) };
     this.drawSelectionBox(g.box, shape);
+  }
+
+  /**
+   * Highlights step `step` of path `path` in the drawing (issue #40): hovering a step in the
+   * left panel or the Attributes. Null clears it.
+   */
+  highlightStep(path: string | null, step: number | null): void {
+    this.svg?.querySelector(".zyxdraw-step-overlay")?.remove();
+    const t = this.target();
+    if (!this.svg || !t || !path || step === null) return;
+    const shape = allShapes(t.scene).find((s) => s.path === path);
+    const found = shape && stepsOf(t.scene, shape);
+    const s = found?.steps[step];
+    if (!shape || !found || !s) return;
+    const doc = this.svg.ownerDocument;
+    const group = (parent: Element, transform: string) => {
+      const el = doc.createElementNS(SVG_NS, "g");
+      if (transform) el.setAttribute("transform", transform);
+      parent.appendChild(el);
+      return el;
+    };
+    const root = group(this.svg, "");
+    root.classList.add("zyxdraw-overlay", "zyxdraw-step-overlay");
+    // Where the path is drawn: its groups' and its own rotate / scale, then where its numbers start.
+    const tr = overlayTransforms(t.scene, shape);
+    const inner = group(group(group(root, tr.parent), tr.own), `translate(${found.offset.x},${found.offset.y})`);
+    const add = (tag: string, attrs: Record<string, string | number>, cls: string) => {
+      const el = doc.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+      el.setAttribute("vector-effect", "non-scaling-stroke");
+      el.classList.add(cls);
+      inner.appendChild(el);
+    };
+    if (s.highlight) add("path", { d: s.highlight }, "zyxdraw-step-highlight");
+    add("circle", { cx: s.at.x, cy: s.at.y, r: 5 / this.pxPerUnit() }, "zyxdraw-step-point");
   }
 
   private drawSelectionBox(box: Box, shape: Shape): void {

@@ -101,6 +101,8 @@ interface Seg {
   arc?: ArcFlags;
   /** Start of its subpath, where `Z` goes back to. */
   subStart: Pt;
+  /** Its numbers as written, with their place in the text. */
+  nums: { value: number; start: number; end: number }[];
 }
 
 const ARGS: Record<string, number> = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, A: 7, Z: 0 };
@@ -129,7 +131,7 @@ function parseSegs(d: string): Seg[] | null {
     if (segs.length > 0 && segs[segs.length - 1].upper === "Z" && upper !== "M") return null;
     i++;
     if (upper === "Z") {
-      segs.push({ letter: c.cmd, upper, rel, explicit: true, start: c.start, end: c.end, from: cur, to: subStart, subStart });
+      segs.push({ letter: c.cmd, upper, rel, explicit: true, start: c.start, end: c.end, from: cur, to: subStart, subStart, nums: [] });
       cur = subStart;
       continue;
     }
@@ -154,6 +156,7 @@ function parseSegs(d: string): Seg[] | null {
         from: cur,
         to: cur,
         subStart,
+        nums: nums.map((t) => ({ value: t.value!, start: t.start, end: t.end })),
       };
       switch (kind) {
         case "M":
@@ -747,4 +750,115 @@ export function setPathNodeSmooth(d: string, node: number, smooth: boolean, roun
   // Segments between the two changed sides (at the start of a closed path) keep their index.
   const between = last > first + 1 ? keepFollowing(text, segs, first + 1, comma, last) : text;
   return keepFollowing(between, segs, last + 1, comma);
+}
+
+// ---- explaining a path in plain words (issue #40) ------------------------------------------------
+
+/** One number of a step: what it is, its value, and where it is in `d`. */
+export interface StepNumber {
+  label: string;
+  value: number;
+  start: number;
+  end: number;
+}
+
+/** One step of a path, in plain words, with its numbers and what it draws. */
+export interface PathStep {
+  /** "Straight line to 150, 50", "Curve 50 right and 10 down (...)". */
+  words: string;
+  /** The command as written (`l` for a pair after `m`). */
+  command: string;
+  numbers: StepNumber[];
+  /** Path text drawing only this step, in the path's own numbers (empty for a move). */
+  highlight: string;
+  /** Where the step ends (a move: the point it goes to). */
+  at: Pt;
+}
+
+const LABELS: Record<string, string[]> = {
+  M: ["x", "y"],
+  L: ["x", "y"],
+  H: ["x"],
+  V: ["y"],
+  C: ["handle 1 x", "handle 1 y", "handle 2 x", "handle 2 y", "x", "y"],
+  S: ["handle x", "handle y", "x", "y"],
+  Q: ["handle x", "handle y", "x", "y"],
+  T: ["x", "y"],
+  A: ["radius x", "radius y", "turn", "long way (1) or short (0)", "clockwise (1) or not (0)", "x", "y"],
+  Z: [],
+};
+
+/** "50 right and 10 up": a relative move in words (y grows downwards). */
+function moveWords(dx: number, dy: number): string {
+  const parts: string[] = [];
+  if (dx !== 0) parts.push(`${num(Math.abs(dx))} ${dx > 0 ? "right" : "left"}`);
+  if (dy !== 0) parts.push(`${num(Math.abs(dy))} ${dy > 0 ? "down" : "up"}`);
+  return parts.length > 0 ? parts.join(" and ") : "nowhere (0, 0)";
+}
+
+/**
+ * The steps of path text `d` in plain words (issue #40), for every SVG command in both cases;
+ * null when the text cannot be read (for example calculations in `( )`).
+ */
+export function pathSteps(d: string): PathStep[] | null {
+  const segs = parseSegs(d);
+  if (!segs) return null;
+  const xy = (p: Pt) => `${num(p.x)}, ${num(p.y)}`;
+  return segs.map((s, i): PathStep => {
+    const a = s.nums.map((n) => n.value);
+    const labels = LABELS[s.upper] ?? [];
+    const numbers = s.nums.map((n, k) => ({ label: labels[k] ?? "", value: n.value, start: n.start, end: n.end }));
+    // Relative: the numbers count from where the step starts.
+    const rel = s.rel && !(s.upper === "M" && i === 0);
+    const to = rel ? moveWords(s.to.x - s.from.x, s.to.y - s.from.y) : `to ${xy(s.to)}`;
+    const handle = (k: number) => (rel ? `${num(a[k])}, ${num(a[k + 1])} from its start` : `${num(a[k])}, ${num(a[k + 1])}`);
+    let words: string;
+    let highlight = `M ${pt(s.from)} `;
+    switch (s.upper) {
+      case "M":
+        words = i === 0 ? `Start at ${xy(s.to)}` : rel ? `Jump ${to} (a new part)` : `Jump to ${xy(s.to)} (a new part)`;
+        highlight = "";
+        break;
+      case "L":
+        words = `Straight line ${to}`;
+        highlight += `L ${pt(s.to)}`;
+        break;
+      case "H":
+        words = rel ? `Straight line ${moveWords(s.to.x - s.from.x, 0)}` : `Straight line across to x ${num(s.to.x)}`;
+        highlight += `L ${pt(s.to)}`;
+        break;
+      case "V":
+        words = rel ? `Straight line ${moveWords(0, s.to.y - s.from.y)}` : `Straight line up or down to y ${num(s.to.y)}`;
+        highlight += `L ${pt(s.to)}`;
+        break;
+      case "C":
+        words = `Curve ${to} (handles at ${handle(0)} and ${handle(2)})`;
+        highlight += `C ${pt(s.c1!)} ${pt(s.c2!)} ${pt(s.to)}`;
+        break;
+      case "S":
+        words = `Smooth curve ${to} (its first handle mirrors the curve before; second handle at ${handle(0)})`;
+        highlight += `C ${pt(s.c1!)} ${pt(s.c2!)} ${pt(s.to)}`;
+        break;
+      case "Q":
+        words = `Curve ${to} (pulled toward ${handle(0)})`;
+        highlight += `Q ${pt(s.q!)} ${pt(s.to)}`;
+        break;
+      case "T":
+        words = `Smooth curve ${to} (pulled the way the curve before was)`;
+        highlight += `Q ${pt(s.q!)} ${pt(s.to)}`;
+        break;
+      case "A": {
+        const f = s.arc!;
+        const radius = f.rx === f.ry ? `radius ${num(f.rx)}` : `radius ${num(f.rx)} by ${num(f.ry)}`;
+        const turn = f.rot !== 0 ? `, turned ${num(f.rot)}°` : "";
+        words = `Arc ${to} (${radius}${turn}, the ${f.large ? "long" : "short"} way, ${f.sweep ? "clockwise" : "counterclockwise"})`;
+        highlight += `A ${num(f.rx)} ${num(f.ry)} ${num(f.rot)} ${f.large} ${f.sweep} ${pt(s.to)}`;
+        break;
+      }
+      default:
+        words = "Close the shape: a straight line back to the start";
+        highlight += `L ${pt(s.to)}`;
+    }
+    return { words, command: s.letter, numbers, highlight, at: s.to };
+  });
 }

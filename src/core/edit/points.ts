@@ -9,7 +9,7 @@ import type { Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 import { shapeTransform, transformAbout } from "../transform";
 import { appendLine, blank, canEdit, editableShape, geometry, moveLineEnd, newShapeName, normalizeEdits, StatementEditor, type EditResult, type EditTarget, type TextEdit } from "./edit";
-import { bendPathSide, continuePathText, deletePathNode, isEditablePath, openPathEnds, pathNodeKind, pathSideCurves, pathSides, penPathData, setPathNodeSmooth, splitPathSide, type PenNode, type Pt } from "./path-nodes";
+import { bendPathSide, continuePathText, deletePathNode, isEditablePath, openPathEnds, pathNodeKind, pathSideCurves, pathSides, pathSteps, penPathData, setPathNodeSmooth, splitPathSide, type PathStep, type PenNode, type Pt } from "./path-nodes";
 
 export interface PointHandle {
   /** Position in frame coordinates, before rotate / scale (see `overlayTransforms`). */
@@ -445,6 +445,65 @@ export function setPointSmooth(target: EditTarget, path: string, index: number, 
     if (node === null) return "only points on the outline of a path can be made smooth or a corner";
     const d = setPathNodeSmooth(value, node, smooth, (n) => Number(fmt(n)));
     return typeof d === "string" ? changed(value, d) : d.error;
+  });
+}
+
+// ---- a path's steps in plain words (issue #40) -------------------------------------------------
+
+/** The steps of a path's `d` in plain words, and where its own numbers are drawn; null for other shapes. */
+export function stepsOf(scene: Scene, shape: Shape): { steps: PathStep[]; offset: { x: number; y: number } } | null {
+  const d = shape.attrs.get("d");
+  const g = geometry(scene, shape);
+  if (shape.type !== "path" || d?.value.t !== "str" || !g || !shape.pathData) return null;
+  const steps = pathSteps(d.value.v);
+  return steps ? { steps, offset: offset(shape, g.box) } : null;
+}
+
+/**
+ * The path whose `d` is at text position `pos` (on the attribute's name or its text), with its
+ * steps: for the hover in the left panel. Null elsewhere.
+ */
+export function stepsAt(target: EditTarget, pos: number): { path: string; steps: PathStep[] } | null {
+  for (const shape of allShapesOf(target.scene)) {
+    if (shape.type !== "path" || shape.generated || shape.instanceOf) continue;
+    if (pos < shape.source.range.start || pos > shape.source.range.end) continue;
+    const attr = new StatementEditor(target.source, shape.source, shape.spec.aliases).find("d");
+    if (!attr || pos < attr.range.start || pos > attr.range.end) continue;
+    const found = stepsOf(target.scene, shape);
+    if (found) return { path: shape.path, steps: found.steps };
+  }
+  return null;
+}
+
+/** Every shape of the scene, nested ones too. */
+function allShapesOf(scene: Scene): Shape[] {
+  const out: Shape[] = [];
+  const walk = (list: Shape[]) => {
+    for (const s of list) {
+      out.push(s);
+      walk(s.children ?? []);
+    }
+  };
+  walk(scene.roots);
+  return out;
+}
+
+/**
+ * Changes number `index` of a path's `d` (counting every number in its steps) to `text`: only
+ * that number changes in the text (issue #40).
+ */
+export function setPathNumber(target: EditTarget, path: string, index: number, text: string): EditResult {
+  return editPoints(target, path, (shape, value) => {
+    if (shape.type !== "path") return "only a path has steps";
+    const n = pathSteps(value)?.flatMap((s) => s.numbers)[index];
+    if (!n) return "this number cannot be found in `d`";
+    const t = text.trim();
+    if (!/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(t)) return `\`${t}\` is not a number`;
+    if (n.label.includes("(1)") && t !== "0" && t !== "1") return `${n.label}: write 1 or 0`;
+    // A number written straight after another one needs a space before it (`10-5` -> `10 5`).
+    const before = value[n.start - 1];
+    const space = before !== undefined && /[\d.]/.test(before) ? " " : "";
+    return { start: n.start, end: n.end, insert: space + t };
   });
 }
 

@@ -616,6 +616,83 @@ body.zyxdraw-resizing-y * {
   opacity: 1;
 }
 
+/* A path's steps (issue #40): the hover list in the left panel, and the step highlighted in the drawing. */
+.zyxdraw-steps-tip {
+  max-width: 420px;
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--size-2-3) var(--size-4-2);
+  font-family: var(--font-interface);
+  font-size: var(--font-ui-small);
+}
+
+.zyxdraw-steps-title {
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--size-2-2);
+}
+
+.zyxdraw-steps {
+  margin: 0;
+  padding-left: 2em;
+}
+
+.zyxdraw-steps li {
+  padding: 1px var(--size-2-1);
+  border-radius: var(--radius-s);
+}
+
+.zyxdraw-steps li:hover {
+  background: var(--background-modifier-hover);
+}
+
+.zyxdraw-steps-more {
+  margin-top: var(--size-2-2);
+  color: var(--text-muted);
+}
+
+.zyxdraw-step-highlight {
+  fill: none;
+  stroke: var(--interactive-accent);
+  stroke-width: 5;
+  stroke-opacity: 0.6;
+  stroke-linecap: round;
+}
+
+.zyxdraw-step-point {
+  fill: var(--interactive-accent);
+  stroke: var(--background-primary);
+  stroke-width: 1.5;
+}
+
+/* Steps of d in the Attributes: the words, then one small field per number. */
+.zyxdraw-steps-section .zyxdraw-steps {
+  padding: var(--size-2-2) var(--size-4-2) var(--size-2-2) 2.5em;
+}
+
+.zyxdraw-steps-section li {
+  padding: var(--size-2-2) var(--size-2-2);
+}
+
+.zyxdraw-step-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-2-2) var(--size-4-2);
+  margin-top: var(--size-2-1);
+}
+
+.zyxdraw-step-number {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.zyxdraw-step-number input {
+  width: 5em;
+  font-size: var(--font-ui-small);
+}
+
 /* A selected path's sides: drag to bend (issue #35). Invisible until hovered; Ctrl / Cmd drag moves. */
 .zyxdraw-side-hit {
   fill: none;

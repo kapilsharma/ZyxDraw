@@ -104,14 +104,17 @@ export {
   pointKind,
   pointSourceRange,
   previewGeometry,
+  setPathNumber,
   setPointSmooth,
   sideHandles,
+  stepsAt,
+  stepsOf,
   type NumberFormat,
   type OpenEnd,
   type PointDragOptions,
   type PointHandle,
 } from "./edit/points";
-export { penPathData, type PenNode, type Pt } from "./edit/path-nodes";
+export { pathSteps, penPathData, type PathStep, type PenNode, type Pt, type StepNumber } from "./edit/path-nodes";
 export { shapeTransform } from "./transform";
 export { formatCoordinate, gridPath, gridSteps, snapDelta } from "./grid";
 export { contentBounds, INFINITE_PADDING, type Bounds } from "./bounds";

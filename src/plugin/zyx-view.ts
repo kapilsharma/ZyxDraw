@@ -1,6 +1,6 @@
 import { Notice, Scope, TFile, TextFileView, WorkspaceLeaf, debounce, type Modifier, type ViewStateResult } from "obsidian";
 import { Compartment, EditorState, Transaction } from "@codemirror/state";
-import { EditorView, drawSelection, keymap, lineNumbers, highlightActiveLine } from "@codemirror/view";
+import { EditorView, drawSelection, hoverTooltip, keymap, lineNumbers, highlightActiveLine } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab, redo, toggleComment, undo } from "@codemirror/commands";
 import { linter, lintGutter, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
 import {
@@ -19,8 +19,10 @@ import {
   galleryLayers,
   parse,
   toggleHidden,
+  stepsAt,
   nameDefinition,
   type CompileResult,
+  type PathStep,
   type DefinitionLink,
   type EditResult,
   type Scene,
@@ -172,6 +174,7 @@ export class ZyxView extends TextFileView {
       apply: (edit, source) => this.applyEdit(edit, source),
       revealInSource: (path) => this.revealInSource(path),
       select: (path) => this.drawing?.select(path),
+      highlightStep: (path, step) => this.drawing?.highlightStep(path, step),
     });
     this.problemsEl = center.createDiv({ cls: "zyxdraw-problems" });
     this.rightPanel = this.contentEl.createDiv({ cls: "zyxdraw-right-panel" });
@@ -648,6 +651,7 @@ export class ZyxView extends TextFileView {
         this.eyes.of(this.eyeExtension(this.plugin.settings.showLayerToggles)),
         ...zyxLanguageSupport({ library: this.isLibrary() }),
         definitionLinks((link) => void this.goToDefinition(link)),
+        this.stepsHover(),
         lintGutter(),
         linter((view) => this.lint(view), { delay: 300 }),
         EditorView.updateListener.of((update) => {
@@ -661,6 +665,42 @@ export class ZyxView extends TextFileView {
         }),
       ],
     });
+  }
+
+  /**
+   * Hovering a path's `d` in the left panel shows its steps in plain words (issue #40); hovering
+   * a step highlights that part in the drawing area.
+   */
+  private stepsHover() {
+    return hoverTooltip(
+      (view, pos) => {
+        const cur = this.current();
+        if (!cur || cur.source !== view.state.doc.toString()) return null;
+        const found = stepsAt({ source: cur.source, scene: cur.result.scene }, pos);
+        if (!found) return null;
+        return {
+          pos,
+          above: true,
+          create: () => ({ dom: this.stepsList(found.path, found.steps), destroy: () => this.drawing?.highlightStep(null, null) }),
+        };
+      },
+      { hideOnChange: true },
+    );
+  }
+
+  /** The numbered list of a path's steps, for the hover in the left panel. */
+  private stepsList(path: string, steps: PathStep[]): HTMLElement {
+    const MAX = 40;
+    const dom = createDiv({ cls: "zyxdraw-steps-tip" });
+    dom.createDiv({ cls: "zyxdraw-steps-title", text: "Steps of d" });
+    const list = dom.createEl("ol", { cls: "zyxdraw-steps" });
+    steps.slice(0, MAX).forEach((s, i) => {
+      const li = list.createEl("li", { text: s.words });
+      li.addEventListener("mouseenter", () => this.drawing?.highlightStep(path, i));
+      li.addEventListener("mouseleave", () => this.drawing?.highlightStep(null, null));
+    });
+    if (steps.length > MAX) dom.createDiv({ cls: "zyxdraw-steps-more", text: `... and ${steps.length - MAX} more: all of them are in the Attributes` });
+    return dom;
   }
 
   private async lint(view: EditorView): Promise<CmDiagnostic[]> {
