@@ -7,6 +7,7 @@ import { Menu, Notice, Platform, setIcon } from "obsidian";
 import {
   allShapes,
   canAddPoints,
+  continuePath,
   copyText,
   deletePoint,
   deleteShapes,
@@ -35,6 +36,7 @@ import {
   movePoint,
   movedPointsText,
   normalizeEdits,
+  openEnds,
   overlayTransforms,
   penPathData,
   pointHandles,
@@ -49,6 +51,7 @@ import {
   type EditTarget,
   type GradientDef,
   type NewShapeType,
+  type OpenEnd,
   type Reorder,
   type Scene,
   type Shape,
@@ -182,6 +185,11 @@ export class DrawingEditor {
     nodes: PenNode[];
     mouse: { x: number; y: number } | null;
     press: { pointerId: number; index: number; closing: boolean; client: { x: number; y: number }; moved: boolean } | null;
+    /**
+     * Continuing an open path or polyline (issue #34): node 0 is its end `at`; clicking its
+     * `other` end closes it. A polyline gets straight sides only.
+     */
+    cont?: { path: string; at: "start" | "end"; other: { x: number; y: number }; polyline: boolean };
   } | null = null;
   private readonly guideButtons = new Map<Guide, HTMLElement>();
   /** The selected shape's own coordinates, for the mouse position: its name and 0,0. */
@@ -454,10 +462,41 @@ export class DrawingEditor {
 
   // ---- pen tool ---------------------------------------------------------------------------
 
-  /** Whether `p` is on the pen's first node, so a click closes the path. */
+  /**
+   * Whether `p` is on the point that closes the path: the pen's first node, or, when continuing
+   * a path, its other end (a polyline cannot be closed).
+   */
   private closesPen(p: { x: number; y: number } | null): boolean {
-    const nodes = this.pen?.nodes ?? [];
-    return !!p && nodes.length >= 2 && this.screenDistance(p, nodes[0]) <= 8;
+    const pen = this.pen;
+    const nodes = pen?.nodes ?? [];
+    if (!p || nodes.length < 2) return false;
+    if (pen?.cont) return !pen.cont.polyline && this.screenDistance(p, pen.cont.other) <= 8;
+    return this.screenDistance(p, nodes[0]) <= 8;
+  }
+
+  /** The ends of the selected open path or polyline, where the pen can go on (issue #34). */
+  private selectedOpenEnds(): { path: string; ends: OpenEnd[]; polyline: boolean } | null {
+    const t = this.target();
+    if (!t || !this.selected || this.multi.length > 1 || this.library) return null;
+    const shape = allShapes(t.scene).find((s) => s.path === this.selected);
+    const ends = shape && openEnds(t.scene, shape);
+    return shape && ends ? { path: shape.path, ends, polyline: shape.type === "polyline" } : null;
+  }
+
+  /** Starts the pen from an end of the selected open path or polyline (issue #34). */
+  private startContinue(at: "start" | "end"): void {
+    const open = this.selectedOpenEnds();
+    const end = open?.ends.find((x) => x.at === at);
+    const other = open?.ends.find((x) => x.at !== at);
+    if (!open || !end || !other) return;
+    if (this.tool !== "pen") this.setTool("pen");
+    if (!this.pen) return;
+    this.pen.nodes = [{ x: end.x, y: end.y }];
+    this.pen.press = null;
+    this.pen.mouse = { x: end.x, y: end.y };
+    this.pen.cont = { path: open.path, at, other: { x: other.x, y: other.y }, polyline: open.polyline };
+    this.stage.focus();
+    this.renderDraft();
   }
 
   private onPenDown(e: PointerEvent): void {
@@ -466,6 +505,22 @@ export class DrawingEditor {
     if (!pen || !p) return;
     e.preventDefault();
     const press = { pointerId: e.pointerId, client: { x: e.clientX, y: e.clientY }, moved: false };
+    if (pen.nodes.length === 0 && !pen.cont) {
+      // Before the first point: an end (or its "+" mark) of the selected open path continues it.
+      const mark = (e.target as Element | null)?.closest?.("[data-continue]")?.getAttribute("data-continue");
+      const raw = this.toSvg(e);
+      const open = this.selectedOpenEnds();
+      const end = mark ? open?.ends.find((x) => x.at === mark) : raw ? open?.ends.find((x) => this.screenDistance(raw, x) <= 8) : undefined;
+      if (end) {
+        this.startContinue(end.at);
+        // Keep the button: dragging from the end pulls out a handle that curves the first new side.
+        if (this.pen?.cont && !this.pen.cont.polyline) {
+          this.pen.press = { ...press, index: 0, closing: false };
+          this.stage.setPointerCapture(e.pointerId);
+        }
+        return;
+      }
+    }
     if (this.closesPen(p)) {
       pen.press = { ...press, index: 0, closing: true };
     } else {
@@ -489,10 +544,13 @@ export class DrawingEditor {
     const press = pen.press;
     if (press && p && e.pointerId === press.pointerId) {
       if (!press.moved && Math.hypot(e.clientX - press.client.x, e.clientY - press.client.y) >= DRAG_THRESHOLD) press.moved = true;
-      if (press.moved) {
+      // Continuing: a polyline has straight sides only, the end drawing goes on from only gets
+      // a handle for the new side, and closing on the other end adds no handle.
+      const cont = pen.cont;
+      if (press.moved && !cont?.polyline && !(cont && press.closing)) {
         const node = pen.nodes[press.index];
         node.out = { x: p.x, y: p.y };
-        node.in = { x: 2 * node.x - p.x, y: 2 * node.y - p.y };
+        if (!(cont && press.index === 0)) node.in = { x: 2 * node.x - p.x, y: 2 * node.y - p.y };
       }
     }
     this.renderDraft();
@@ -508,9 +566,19 @@ export class DrawingEditor {
     else this.renderDraft();
   }
 
-  /** Adds the path to the text and goes back to the select tool. */
+  /** Adds the path to the text (or, continuing, the new part) and goes back to the select tool. */
   private finishPen(closed: boolean): void {
     const nodes = this.pen?.nodes ?? [];
+    const cont = this.pen?.cont;
+    if (cont) {
+      if (nodes.length < 2) {
+        new Notice("ZyxDraw: place at least one new point to continue the path");
+        return;
+      }
+      this.setTool("select");
+      this.run((t) => continuePath(t, cont.path, cont.at, nodes, closed, this.fmt));
+      return;
+    }
     if (nodes.length < 2) {
       new Notice(`ZyxDraw: a path needs at least 2 points (${nodes.length} placed)`);
       return;
@@ -527,10 +595,14 @@ export class DrawingEditor {
     if (!layer) return;
     const { add, r } = layer;
     const closing = !pen.press && this.closesPen(pen.mouse);
-    let d = penPathData(pen.nodes, closing || !!pen.press?.closing);
+    const cont = pen.cont;
+    const closed = closing || !!pen.press?.closing;
+    let d = penPathData(pen.nodes, closed && !cont);
     const last = pen.nodes[pen.nodes.length - 1];
-    const m = pen.mouse;
-    if (!pen.press && !closing && m) d += last.out ? ` C ${last.out.x},${last.out.y} ${m.x},${m.y} ${m.x},${m.y}` : ` L ${m.x},${m.y}`;
+    // Continuing: closing joins the other end of the path, not the first node.
+    const m = cont && closed ? cont.other : pen.mouse;
+    if ((cont ? !pen.press || closed : !pen.press && !closing) && m) d += last.out ? ` C ${last.out.x},${last.out.y} ${m.x},${m.y} ${m.x},${m.y}` : ` L ${m.x},${m.y}`;
+    if (cont && !cont.polyline) add("rect", { x: cont.other.x - r, y: cont.other.y - r, width: 2 * r, height: 2 * r }, `zyxdraw-point is-first${closing ? " is-selected" : ""}`);
     add("path", { d }, `zyxdraw-draft-shape${closing || pen.press?.closing ? "" : " is-open"}`);
     for (const n of pen.nodes) {
       for (const h of [n.in, n.out]) {
@@ -540,7 +612,7 @@ export class DrawingEditor {
       }
     }
     pen.nodes.forEach((p, i) =>
-      add("rect", { x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r }, i === 0 ? `zyxdraw-point is-first${closing ? " is-selected" : ""}` : "zyxdraw-point"),
+      add("rect", { x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r }, i === 0 && !cont ? `zyxdraw-point is-first${closing ? " is-selected" : ""}` : "zyxdraw-point"),
     );
   }
 
@@ -1122,6 +1194,16 @@ export class DrawingEditor {
         h.dataset.point = String(i);
         if (i === this.selectedPoint) h.classList.add("is-selected");
       });
+      // An open path or polyline: a "+" beside each end continues it with the pen (issue #34).
+      for (const end of this.selectedOpenEnds()?.ends ?? []) {
+        const cx = end.x + size * 1.4;
+        const cy = end.y - size * 1.4;
+        const mark = el("circle", { cx, cy, r: size * 0.7 }, "zyxdraw-end-mark");
+        mark.dataset.continue = end.at;
+        mark.setAttribute("aria-label", "Continue the path from here");
+        const s = size * 0.4;
+        el("path", { d: `M ${cx - s} ${cy} H ${cx + s} M ${cx} ${cy - s} V ${cy + s}` }, "zyxdraw-end-mark-plus");
+      }
       return;
     }
 
@@ -1214,6 +1296,11 @@ export class DrawingEditor {
     const selectedBox = selectedShape && geometry(t.scene, selectedShape)?.box;
 
     const on = (attr: string) => (e.target as Element | null)?.closest?.(`[${attr}]`)?.getAttribute(attr) ?? undefined;
+    const mark = on("data-continue");
+    if (mark === "start" || mark === "end") {
+      this.startContinue(mark);
+      return;
+    }
     const point = on("data-point");
     if (point !== undefined && this.selected && selectedBox) {
       this.selectPoint(Number(point));
@@ -1529,6 +1616,8 @@ export class DrawingEditor {
       e.preventDefault();
       this.selectPoint(Number(point));
       const menu = new Menu();
+      const end = this.selectedOpenEnds()?.ends.find((x) => x.point === Number(point));
+      if (end) menu.addItem((i) => i.setTitle("Continue path").setIcon("pen-tool").onClick(() => this.startContinue(end.at)));
       menu.addItem((i) => i.setTitle("Delete point").setIcon("trash").onClick(() => this.deleteSelectedPoint()));
       menu.showAtMouseEvent(e);
       return;
@@ -1577,6 +1666,8 @@ export class DrawingEditor {
     if (this.tool === "pen" && this.pen && this.pen.nodes.length > 0) {
       this.pen.nodes.pop();
       this.pen.press = null;
+      // Continuing: taking back the end it started from stops continuing.
+      if (this.pen.nodes.length === 0) this.pen.cont = undefined;
     } else if (this.tool === "polygon" && this.draft && this.draft.points.length > 0) {
       this.draft.points.pop();
     } else return false;

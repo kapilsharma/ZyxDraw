@@ -9,7 +9,7 @@ import type { Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 import { shapeTransform, transformAbout } from "../transform";
 import { appendLine, blank, canEdit, editableShape, geometry, moveLineEnd, newShapeName, normalizeEdits, StatementEditor, type EditResult, type EditTarget, type TextEdit } from "./edit";
-import { deletePathNode, isSimplePath, pathSides, penPathData, splitPathSide, type PenNode } from "./path-nodes";
+import { deletePathNode, isSimplePath, openPathEnds, pathSides, penClose, penEdges, penPathData, reversePen, splitPathSide, type PenNode, type Pt } from "./path-nodes";
 
 export interface PointHandle {
   /** Position in frame coordinates, before rotate / scale (see `overlayTransforms`). */
@@ -177,6 +177,107 @@ export function insertPath(target: EditTarget, nodes: PenNode[], closed: boolean
   result.edits = [appendLine(target.source, `${name} is path(d="${penPathData(rounded, closed)}"${style})`)];
   result.select = name;
   return result;
+}
+
+// ---- continuing an open path or polyline (issue #34) -----------------------------------------
+
+/** An end of an open path or polyline: where it is (frame coordinates) and its point's index. */
+export interface OpenEnd {
+  at: "start" | "end";
+  x: number;
+  y: number;
+  /** Index in `pointHandles`. */
+  point: number;
+}
+
+/**
+ * The two ends of an open path or polyline, where drawing can go on; null when it cannot be
+ * continued: closed paths and polygons, paths with several parts or with commands other than
+ * absolute M, L, H, V, C, and shapes turned or scaled (the mouse and the shape's numbers would
+ * not line up).
+ */
+export function openEnds(scene: Scene, shape: Shape): OpenEnd[] | null {
+  if (!canAddPoints(shape) || shape.type === "polygon") return null;
+  if (shape.type === "path") {
+    const d = shape.attrs.get("d");
+    if (d?.value.t !== "str" || !openPathEnds(d.value.v)) return null;
+  }
+  const t = overlayTransforms(scene, shape);
+  if (t.parent || t.own) return null;
+  const points = pointHandles(scene, shape);
+  if (!points) return null;
+  const ends = points.map((p, i) => (p.kind === "end" ? i : -1)).filter((i) => i >= 0);
+  if (ends.length < 2) return null;
+  const first = ends[0];
+  const last = ends[ends.length - 1];
+  return [
+    { at: "start", x: points[first].x, y: points[first].y, point: first },
+    { at: "end", x: points[last].x, y: points[last].y, point: last },
+  ];
+}
+
+/**
+ * Continues an open path or polyline from one of its ends (issue #34). `nodes` are pen nodes in
+ * frame coordinates: the first is the end drawing goes on from (its `out` handle, if dragged,
+ * curves the first new side), then the new points. Only the new part is written: added at the end
+ * of `d` / `points`, or at the start, where the new points come first and the old `M` point
+ * becomes a line or curve to them. `close`: the last new point is joined to the other end (`Z`);
+ * a polyline cannot be closed.
+ */
+export function continuePath(target: EditTarget, path: string, at: "start" | "end", nodes: PenNode[], close: boolean, fmt: NumberFormat): EditResult {
+  if (nodes.length < 2) {
+    const result = blank();
+    result.notices.push("Place at least one new point to continue the path");
+    return result;
+  }
+  const result = editPoints(target, path, (shape, value) => {
+    // The shape's place on the drawing (inside its groups), as for its point handles.
+    const g = geometry(target.scene, shape);
+    if (!g || !openEnds(target.scene, shape)) return "only open paths and polylines that are not turned or scaled can be continued";
+    const off = offset(shape, g.box);
+    const own = (p: Pt): Pt => ({ x: Number(fmt(p.x - off.x)), y: Number(fmt(p.y - off.y)) });
+    const local: PenNode[] = nodes.map((n) => ({ ...own(n), in: n.in && own(n.in), out: n.out && own(n.out) }));
+    if (shape.type === "polyline") {
+      if (close) return "a polyline cannot be closed: change `polyline` to `polygon` to close it";
+      return polylineContinue(value, at, local.slice(1), fmt);
+    }
+    const ends = openPathEnds(value);
+    if (!ends) return "only open paths with one part can be continued";
+    const tail = value.trimEnd().length;
+    if (at === "end") {
+      const added = [penEdges(local), close ? penClose(local[local.length - 1], ends.start) : ""].filter(Boolean).join(" ");
+      return { start: tail, end: tail, insert: ` ${added}` };
+    }
+    // At the start: the new points come first, drawn towards the old start point.
+    const reversed = reversePen(local);
+    const m = value.search(/M/);
+    const mEnd = pathSegments(value)?.[0]?.args[1]?.end;
+    if (m < 0 || mEnd === undefined) return "the start of `d` cannot be found";
+    // Pairs written after the `M` point are lines: keep them lines after the new part.
+    const implicit = /^[\s,]*[-+.\d]/.test(value.slice(mEnd));
+    const head = penPathData(reversed, false) + (implicit ? " L" : "");
+    if (!close) return { start: m, end: mEnd, insert: head };
+    // Closing too: a change at both ends. The middle stays as written.
+    const closing = penClose({ x: ends.end.x, y: ends.end.y }, reversed[0]);
+    return { start: 0, end: value.length, insert: value.slice(0, m) + head + value.slice(mEnd, tail) + " " + closing + value.slice(tail) };
+  });
+  if (result.edits.length > 0) result.select = path;
+  return result;
+}
+
+/** New points for a polyline's `points`, at its start or end, with the separators it already uses. */
+function polylineContinue(value: string, at: "start" | "end", added: Pt[], fmt: NumberFormat): { start: number; end: number; insert: string } | string {
+  const t = numbers(value);
+  if (t.length < 4 || t.length % 2 !== 0) return "the points of this polyline cannot be read";
+  const within = value.slice(t[0].end, t[1].start) || ",";
+  const between = value.slice(t[1].end, t[2].start) || " ";
+  const one = (p: Pt) => `${fmt(p.x)}${within}${fmt(p.y)}`;
+  if (at === "end") {
+    const after = t[t.length - 1].end;
+    return { start: after, end: after, insert: added.map((p) => between + one(p)).join("") };
+  }
+  const before = t[0].start;
+  return { start: before, end: before, insert: [...added].reverse().map((p) => one(p) + between).join("") };
 }
 
 /** Shapes that can get and lose points: polygon, polyline, and paths of lines and curves. */

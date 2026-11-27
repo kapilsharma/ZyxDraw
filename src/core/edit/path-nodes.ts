@@ -52,16 +52,42 @@ const pt = (p: Pt) => `${num(p.x)},${num(p.y)}`;
 export function penPathData(nodes: PenNode[], closed: boolean): string {
   if (nodes.length === 0) return "";
   const parts = [`M ${pt(nodes[0])}`];
-  const edge = (a: PenNode, b: PenNode, last: boolean) => {
-    if (a.out || b.in) parts.push(`C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)}`);
-    else if (!last) parts.push(`L ${pt(b)}`);
-  };
-  for (let i = 0; i + 1 < nodes.length; i++) edge(nodes[i], nodes[i + 1], false);
-  if (closed && nodes.length > 1) {
-    edge(nodes[nodes.length - 1], nodes[0], true);
-    parts.push("Z");
+  const edges = penEdges(nodes);
+  if (edges) parts.push(edges);
+  if (closed && nodes.length > 1) parts.push(penClose(nodes[nodes.length - 1], nodes[0]));
+  return parts.join(" ");
+}
+
+/** The edges between pen nodes, without the `M`: `C 30,20 50,40 50,60 L 80,60`. */
+export function penEdges(nodes: PenNode[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i + 1 < nodes.length; i++) {
+    const a = nodes[i];
+    const b = nodes[i + 1];
+    parts.push(a.out || b.in ? `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)}` : `L ${pt(b)}`);
   }
   return parts.join(" ");
+}
+
+/** Closes a path from node `a` back to the start `b`: a curve then `Z`, or just `Z` (its line). */
+export function penClose(a: PenNode, b: PenNode): string {
+  return a.out || b.in ? `C ${pt(a.out ?? a)} ${pt(b.in ?? b)} ${pt(b)} Z` : "Z";
+}
+
+/** The same nodes drawn the other way: reversed, each node's handles swapped. */
+export function reversePen(nodes: PenNode[]): PenNode[] {
+  return [...nodes].reverse().map((n) => ({ x: n.x, y: n.y, in: n.out, out: n.in }));
+}
+
+/**
+ * The two ends of a path that can be continued (issue #34): a simple path with one subpath that
+ * is not closed. Null for any other path.
+ */
+export function openPathEnds(d: string): { start: Pt; end: Pt } | null {
+  const subs = parseSimple(d);
+  if (!subs || subs.length !== 1 || subs[0].closed) return null;
+  const nodes = subs[0].nodes;
+  return { start: nodes[0], end: nodes[nodes.length - 1] };
 }
 
 /** Parses a simple path (see the top of this file), or null. */

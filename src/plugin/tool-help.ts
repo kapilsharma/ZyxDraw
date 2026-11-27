@@ -103,6 +103,7 @@ export const TOOL_HELP: Record<Tool, ToolHelp> = {
       { how: "Press and drag", does: "Place a smooth point: dragging pulls out its curve" },
       { how: "Click the first point", does: "Close the shape" },
       { how: "Enter or double-click", does: "Finish, leaving the path open" },
+      { how: "Click an end of the selected path", does: "Go on drawing from it (an open path or polyline). Also the + beside each end, or right-click the end: Continue path" },
       { how: "Backspace or Ctrl+Z", does: "Remove the last point" },
       { how: "Alt", does: "Place freely, off the grid (when the grid is shown)" },
       { how: "Esc", does: "Stop: with 2 or more points, the path is kept, open. With fewer, the tool is left" },

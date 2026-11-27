@@ -84,6 +84,7 @@ export * from "./edit/arrange";
 export * from "./edit/visibility";
 export {
   canAddPoints,
+  continuePath,
   deletePoint,
   hasPoints,
   insertedPointsText,
@@ -94,12 +95,14 @@ export {
   localOrigin,
   movePoint,
   movedPointsText,
+  openEnds,
   overlayTransforms,
   pointHandles,
   pointSourceRange,
   previewGeometry,
   sideHandles,
   type NumberFormat,
+  type OpenEnd,
   type PointDragOptions,
   type PointHandle,
 } from "./edit/points";

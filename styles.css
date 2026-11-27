@@ -616,6 +616,30 @@ body.zyxdraw-resizing-y * {
   opacity: 1;
 }
 
+/* "+" beside each end of an open path or polyline: continue it with the pen (issue #34). */
+.zyxdraw-end-mark {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 1.5;
+  pointer-events: all;
+  cursor: copy;
+}
+
+.zyxdraw-end-mark:hover {
+  fill: var(--interactive-accent);
+}
+
+.zyxdraw-end-mark-plus {
+  fill: none;
+  stroke: var(--interactive-accent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.zyxdraw-end-mark:hover + .zyxdraw-end-mark-plus {
+  stroke: var(--text-on-accent);
+}
+
 /* Polygon tool: the shape being drawn. */
 .zyxdraw-stage.is-drawing,
 .zyxdraw-stage.is-drawing * {
