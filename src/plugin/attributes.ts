@@ -8,8 +8,11 @@ import type { PanelView } from "./panels";
 import {
   SECTION_ORDER,
   allShapes,
+  editableShape,
   propertySheet,
+  setPathNumber,
   setProperty,
+  stepsOf,
   type CompileResult,
   type EditResult,
   type PropertyField,
@@ -23,6 +26,8 @@ export interface AttributesHost {
   revealInSource(path: string): void;
   /** Selects a shape in the drawing (null = canvas). */
   select(path: string | null): void;
+  /** Highlights step `step` of a path in the drawing (issue #40); nulls clear it. */
+  highlightStep(path: string | null, step: number | null): void;
 }
 
 /** Edits need exact source ranges, so they are off while the text has syntax errors. */
@@ -39,6 +44,8 @@ export class AttributesForm implements PanelView {
   private readonly closed = new Set<PropertySection>();
   /** Whether the bottom panel is showing the form; while hidden, it is not rebuilt. */
   private shown = false;
+  /** The steps of a path's `d` were closed by the user (issue #40). */
+  private stepsClosed = false;
 
   constructor(
     parent: HTMLElement,
@@ -97,6 +104,7 @@ export class AttributesForm implements PanelView {
       const grid = details.createDiv({ cls: "zyxdraw-prop-grid" });
       for (const f of fields) this.renderField(grid, sheet, f, lists);
     }
+    this.renderSteps(cur.result, sheet);
 
     this.el.scrollTop = scroll;
     if (focusName) {
@@ -189,6 +197,75 @@ export class AttributesForm implements PanelView {
       row.setAttribute("aria-label", f.problem);
       row.createDiv({ cls: "zyxdraw-prop-problem", text: f.problem });
     }
+  }
+
+  /**
+   * A path's `d` as numbered steps in plain words (issue #40). Each number has its own field:
+   * changing it changes only that number in the text. Hovering a step highlights it in the drawing.
+   */
+  private renderSteps(result: CompileResult, sheet: PropertySheet): void {
+    if (sheet.path === null || sheet.type !== "path") return;
+    const path = sheet.path;
+    const shape = editableShape(result.scene, path);
+    const found = shape && shape.path === path ? stepsOf(result.scene, shape) : null;
+    if (!found) return;
+    const details = this.el.createEl("details", { cls: "zyxdraw-prop-section zyxdraw-steps-section" });
+    details.open = !this.stepsClosed;
+    const summary = details.createEl("summary", { text: "Steps of d" });
+    summary.createSpan({ cls: "zyxdraw-prop-count", text: String(found.steps.length) });
+    details.addEventListener("toggle", () => (this.stepsClosed = !details.open));
+    const list = details.createEl("ol", { cls: "zyxdraw-steps" });
+    let index = 0;
+    found.steps.forEach((step, i) => {
+      const li = list.createEl("li");
+      li.createDiv({ cls: "zyxdraw-step-words", text: step.words });
+      const numbers = li.createDiv({ cls: "zyxdraw-step-numbers" });
+      for (const n of step.numbers) {
+        const at = index++;
+        const field = numbers.createEl("label", { cls: "zyxdraw-step-number" });
+        field.createSpan({ text: n.label });
+        const input = field.createEl("input", { type: "text", attr: { "data-field": `d#${at}`, spellcheck: "false", inputmode: "decimal" } });
+        input.value = String(n.value);
+        input.dataset.committed = input.value;
+        if (sheet.readOnly) input.disabled = true;
+        const commit = () => {
+          if (!input.isConnected || input.value === input.dataset.committed) return;
+          input.dataset.committed = input.value;
+          this.commitNumber(path, at, input.value);
+        };
+        input.addEventListener("change", commit);
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            input.value = String(n.value);
+            input.blur();
+          }
+        });
+      }
+      li.addEventListener("mouseenter", () => this.host.highlightStep(path, i));
+      li.addEventListener("mouseleave", () => this.host.highlightStep(null, null));
+    });
+  }
+
+  /** Changes one number of a path's `d`, as a text edit of only that number. */
+  private commitNumber(path: string, index: number, value: string): void {
+    const cur = this.host.current();
+    if (!cur) return;
+    if (hasSyntaxErrors(cur.result)) {
+      new Notice("ZyxDraw: fix the syntax errors in the text first");
+      this.render();
+      return;
+    }
+    const edit = setPathNumber({ source: cur.source, scene: cur.result.scene }, path, index, value);
+    if (edit.edits.length === 0) {
+      for (const n of edit.notices) new Notice(`ZyxDraw: ${n}`);
+      this.render();
+      return;
+    }
+    this.host.apply(edit, cur.source);
   }
 
   /** A native color picker next to a color field. Named colors are shown as their hex value. */

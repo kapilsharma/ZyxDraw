@@ -6,7 +6,11 @@
 import { Menu, Notice, Platform, setIcon } from "obsidian";
 import {
   allShapes,
+  bendableSides,
+  bendSide,
+  bentPointsText,
   canAddPoints,
+  continuePath,
   copyText,
   deletePoint,
   deleteShapes,
@@ -35,13 +39,17 @@ import {
   movePoint,
   movedPointsText,
   normalizeEdits,
+  openEnds,
   overlayTransforms,
   penPathData,
   pointHandles,
+  pointKind,
   previewGeometry,
   reorderShape,
   resizeShape,
+  setPointSmooth,
   sideHandles,
+  stepsOf,
   type Box,
   type PenNode,
   type CompileResult,
@@ -49,6 +57,7 @@ import {
   type EditTarget,
   type GradientDef,
   type NewShapeType,
+  type OpenEnd,
   type Reorder,
   type Scene,
   type Shape,
@@ -56,6 +65,7 @@ import {
 import { colorToHex, hasSyntaxErrors } from "./attributes";
 import type { Guide } from "./settings";
 import { uniqueIds } from "./svg";
+import { TOOL_HELP, forPlatform, type Tool } from "./tool-help";
 
 export interface DrawingHost {
   /** The text and its compile result, or null while the text is newer than the result. */
@@ -77,10 +87,11 @@ export interface DrawingHost {
   pointSelected(path: string, index: number): void;
   /** The active layer (issue #11): new shapes go into it. Null: at the end of the drawing. */
   activeLayer(): string | null;
+  /** The tool changed (issue #42: the Help tab follows it). */
+  toolChanged(tool: Tool): void;
 }
 
 type Handle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
-type Tool = "select" | "hand" | "polygon" | "line" | "pen";
 /** Tools that draw a new shape with clicks. */
 const DRAWING_TOOLS: Tool[] = ["polygon", "line", "pen"];
 const HANDLES: Handle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
@@ -92,7 +103,7 @@ const DRAG_THRESHOLD = 3;
 
 interface DragState {
   /** `many`: moving several selected shapes; `marquee`: dragging a box to select shapes. */
-  kind: "move" | "resize" | "point" | "insert" | "many" | "marquee";
+  kind: "move" | "resize" | "point" | "insert" | "bend" | "many" | "marquee";
   /** Kind "many": the shapes moved, and their elements with the transform they had. */
   paths?: string[];
   els?: { el: SVGGraphicsElement; transform: string | null }[];
@@ -103,7 +114,7 @@ interface DragState {
   handle?: Handle;
   /** Point index (kind "point"). */
   point?: number;
-  /** Side a new point is added on (kind "insert": dragging a side's middle dot). */
+  /** Side a new point is added on (kind "insert": dragging a side's middle dot), or bent (kind "bend"). */
   side?: number;
   pointerId: number;
   /** Start in the drag's own coordinates (see `dragLayer`). */
@@ -180,6 +191,11 @@ export class DrawingEditor {
     nodes: PenNode[];
     mouse: { x: number; y: number } | null;
     press: { pointerId: number; index: number; closing: boolean; client: { x: number; y: number }; moved: boolean } | null;
+    /**
+     * Continuing an open path or polyline (issue #34): node 0 is its end `at`; clicking its
+     * `other` end closes it. A polyline gets straight sides only.
+     */
+    cont?: { path: string; at: "start" | "end"; other: { x: number; y: number }; polyline: boolean };
   } | null = null;
   private readonly guideButtons = new Map<Guide, HTMLElement>();
   /** The selected shape's own coordinates, for the mouse position: its name and 0,0. */
@@ -201,6 +217,8 @@ export class DrawingEditor {
    */
   private library = false;
   private messageEl: HTMLElement | null = null;
+  /** While a drawing tool is in use: its keys, in one line over the bottom of the drawing area (issue #33). */
+  private readonly hintEl: HTMLElement;
 
   constructor(
     parent: HTMLElement,
@@ -209,6 +227,7 @@ export class DrawingEditor {
     this.el = parent.createDiv({ cls: "zyxdraw-drawing-area" });
     this.buildToolbar(this.el.createDiv({ cls: "zyxdraw-toolbar" }));
     this.stage = this.el.createDiv({ cls: "zyxdraw-stage", attr: { tabindex: "0" } });
+    this.hintEl = this.el.createDiv({ cls: "zyxdraw-tool-hint is-hidden", attr: { "aria-live": "polite" } });
 
     this.stage.addEventListener("pointerdown", (e) => this.onPointerDown(e));
     this.stage.addEventListener("pointermove", (e) => {
@@ -449,10 +468,41 @@ export class DrawingEditor {
 
   // ---- pen tool ---------------------------------------------------------------------------
 
-  /** Whether `p` is on the pen's first node, so a click closes the path. */
+  /**
+   * Whether `p` is on the point that closes the path: the pen's first node, or, when continuing
+   * a path, its other end (a polyline cannot be closed).
+   */
   private closesPen(p: { x: number; y: number } | null): boolean {
-    const nodes = this.pen?.nodes ?? [];
-    return !!p && nodes.length >= 2 && this.screenDistance(p, nodes[0]) <= 8;
+    const pen = this.pen;
+    const nodes = pen?.nodes ?? [];
+    if (!p || nodes.length < 2) return false;
+    if (pen?.cont) return !pen.cont.polyline && this.screenDistance(p, pen.cont.other) <= 8;
+    return this.screenDistance(p, nodes[0]) <= 8;
+  }
+
+  /** The ends of the selected open path or polyline, where the pen can go on (issue #34). */
+  private selectedOpenEnds(): { path: string; ends: OpenEnd[]; polyline: boolean } | null {
+    const t = this.target();
+    if (!t || !this.selected || this.multi.length > 1 || this.library) return null;
+    const shape = allShapes(t.scene).find((s) => s.path === this.selected);
+    const ends = shape && openEnds(t.scene, shape);
+    return shape && ends ? { path: shape.path, ends, polyline: shape.type === "polyline" } : null;
+  }
+
+  /** Starts the pen from an end of the selected open path or polyline (issue #34). */
+  private startContinue(at: "start" | "end"): void {
+    const open = this.selectedOpenEnds();
+    const end = open?.ends.find((x) => x.at === at);
+    const other = open?.ends.find((x) => x.at !== at);
+    if (!open || !end || !other) return;
+    if (this.tool !== "pen") this.setTool("pen");
+    if (!this.pen) return;
+    this.pen.nodes = [{ x: end.x, y: end.y }];
+    this.pen.press = null;
+    this.pen.mouse = { x: end.x, y: end.y };
+    this.pen.cont = { path: open.path, at, other: { x: other.x, y: other.y }, polyline: open.polyline };
+    this.stage.focus();
+    this.renderDraft();
   }
 
   private onPenDown(e: PointerEvent): void {
@@ -461,6 +511,22 @@ export class DrawingEditor {
     if (!pen || !p) return;
     e.preventDefault();
     const press = { pointerId: e.pointerId, client: { x: e.clientX, y: e.clientY }, moved: false };
+    if (pen.nodes.length === 0 && !pen.cont) {
+      // Before the first point: an end (or its "+" mark) of the selected open path continues it.
+      const mark = (e.target as Element | null)?.closest?.("[data-continue]")?.getAttribute("data-continue");
+      const raw = this.toSvg(e);
+      const open = this.selectedOpenEnds();
+      const end = mark ? open?.ends.find((x) => x.at === mark) : raw ? open?.ends.find((x) => this.screenDistance(raw, x) <= 8) : undefined;
+      if (end) {
+        this.startContinue(end.at);
+        // Keep the button: dragging from the end pulls out a handle that curves the first new side.
+        if (this.pen?.cont && !this.pen.cont.polyline) {
+          this.pen.press = { ...press, index: 0, closing: false };
+          this.stage.setPointerCapture(e.pointerId);
+        }
+        return;
+      }
+    }
     if (this.closesPen(p)) {
       pen.press = { ...press, index: 0, closing: true };
     } else {
@@ -484,10 +550,13 @@ export class DrawingEditor {
     const press = pen.press;
     if (press && p && e.pointerId === press.pointerId) {
       if (!press.moved && Math.hypot(e.clientX - press.client.x, e.clientY - press.client.y) >= DRAG_THRESHOLD) press.moved = true;
-      if (press.moved) {
+      // Continuing: a polyline has straight sides only, the end drawing goes on from only gets
+      // a handle for the new side, and closing on the other end adds no handle.
+      const cont = pen.cont;
+      if (press.moved && !cont?.polyline && !(cont && press.closing)) {
         const node = pen.nodes[press.index];
         node.out = { x: p.x, y: p.y };
-        node.in = { x: 2 * node.x - p.x, y: 2 * node.y - p.y };
+        if (!(cont && press.index === 0)) node.in = { x: 2 * node.x - p.x, y: 2 * node.y - p.y };
       }
     }
     this.renderDraft();
@@ -503,9 +572,19 @@ export class DrawingEditor {
     else this.renderDraft();
   }
 
-  /** Adds the path to the text and goes back to the select tool. */
+  /** Adds the path to the text (or, continuing, the new part) and goes back to the select tool. */
   private finishPen(closed: boolean): void {
     const nodes = this.pen?.nodes ?? [];
+    const cont = this.pen?.cont;
+    if (cont) {
+      if (nodes.length < 2) {
+        new Notice("ZyxDraw: place at least one new point to continue the path");
+        return;
+      }
+      this.setTool("select");
+      this.run((t) => continuePath(t, cont.path, cont.at, nodes, closed, this.fmt));
+      return;
+    }
     if (nodes.length < 2) {
       new Notice(`ZyxDraw: a path needs at least 2 points (${nodes.length} placed)`);
       return;
@@ -522,10 +601,14 @@ export class DrawingEditor {
     if (!layer) return;
     const { add, r } = layer;
     const closing = !pen.press && this.closesPen(pen.mouse);
-    let d = penPathData(pen.nodes, closing || !!pen.press?.closing);
+    const cont = pen.cont;
+    const closed = closing || !!pen.press?.closing;
+    let d = penPathData(pen.nodes, closed && !cont);
     const last = pen.nodes[pen.nodes.length - 1];
-    const m = pen.mouse;
-    if (!pen.press && !closing && m) d += last.out ? ` C ${last.out.x},${last.out.y} ${m.x},${m.y} ${m.x},${m.y}` : ` L ${m.x},${m.y}`;
+    // Continuing: closing joins the other end of the path, not the first node.
+    const m = cont && closed ? cont.other : pen.mouse;
+    if ((cont ? !pen.press || closed : !pen.press && !closing) && m) d += last.out ? ` C ${last.out.x},${last.out.y} ${m.x},${m.y} ${m.x},${m.y}` : ` L ${m.x},${m.y}`;
+    if (cont && !cont.polyline) add("rect", { x: cont.other.x - r, y: cont.other.y - r, width: 2 * r, height: 2 * r }, `zyxdraw-point is-first${closing ? " is-selected" : ""}`);
     add("path", { d }, `zyxdraw-draft-shape${closing || pen.press?.closing ? "" : " is-open"}`);
     for (const n of pen.nodes) {
       for (const h of [n.in, n.out]) {
@@ -535,7 +618,7 @@ export class DrawingEditor {
       }
     }
     pen.nodes.forEach((p, i) =>
-      add("rect", { x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r }, i === 0 ? `zyxdraw-point is-first${closing ? " is-selected" : ""}` : "zyxdraw-point"),
+      add("rect", { x: p.x - r, y: p.y - r, width: 2 * r, height: 2 * r }, i === 0 && !cont ? `zyxdraw-point is-first${closing ? " is-selected" : ""}` : "zyxdraw-point"),
     );
   }
 
@@ -582,12 +665,22 @@ export class DrawingEditor {
     if (tool === "polygon" && !this.draft) this.draft = { points: [], mouse: null };
     if (tool === "line" && !this.lineDraft) this.lineDraft = { start: null, mouse: null, pressed: false };
     if (tool === "pen" && !this.pen) this.pen = { nodes: [], mouse: null, press: null };
+    const changed = tool !== this.tool;
     this.tool = tool;
+    if (changed) this.host.toolChanged(tool);
     for (const [t, b] of this.toolButtons) {
       b.toggleClass("is-active", t === tool);
       b.setAttribute("aria-pressed", String(t === tool));
     }
     this.updateCursor();
+    this.updateHint();
+  }
+
+  /** Shows the hint line of the drawing tool in use, or hides it. */
+  private updateHint(): void {
+    const hint = this.library ? undefined : TOOL_HELP[this.tool].hint;
+    this.hintEl.toggleClass("is-hidden", !hint);
+    this.hintEl.setText(hint ? forPlatform(hint, Platform.isMacOS) : "");
   }
 
   private handActive(): boolean {
@@ -689,6 +782,7 @@ export class DrawingEditor {
     this.library = on;
     this.el.toggleClass("is-library", on);
     if (on) this.setTool("select");
+    this.updateHint();
     this.drawOverlay();
   }
 
@@ -771,24 +865,20 @@ export class DrawingEditor {
       return b;
     };
     const tools = bar.createDiv({ cls: "zyxdraw-tool-group", attr: { role: "group", "aria-label": "Tool" } });
-    this.toolButtons.set("select", button("mouse-pointer-2", "Select and move (V)", () => this.setTool("select"), tools));
-    this.toolButtons.set("hand", button("hand", "Hand: drag to scroll (H, or hold Space)", () => this.setTool("hand"), tools));
+    this.toolButtons.set("select", button("mouse-pointer-2", TOOL_HELP.select.tooltip, () => this.setTool("select"), tools));
+    this.toolButtons.set("hand", button("hand", TOOL_HELP.hand.tooltip, () => this.setTool("hand"), tools));
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });
     const toggle = (tool: Tool) => () => this.setTool(this.tool === tool ? "select" : tool);
     button("square", "Add rectangle", () => this.add("rect"));
     button("circle", "Add circle", () => this.add("circle"));
-    this.toolButtons.set("line", button("slash", "Draw a line (L): drag, or click both ends. Shift: 45° steps", toggle("line")));
+    this.toolButtons.set("line", button("slash", TOOL_HELP.line.tooltip, toggle("line")));
     this.toolButtons.set(
       "polygon",
-      button("pentagon", "Draw a polygon (P): click to place points, click the first point or press Enter to finish", toggle("polygon")),
+      button("pentagon", TOOL_HELP.polygon.tooltip, toggle("polygon")),
     );
     this.toolButtons.set(
       "pen",
-      button(
-        "pen-tool",
-        "Draw a path (B): click for a corner, drag for a curve. Click the first point to close, or press Enter / double-click to leave it open",
-        toggle("pen"),
-      ),
+      button("pen-tool", TOOL_HELP.pen.tooltip, toggle("pen")),
     );
     button("type", "Add text", () => this.add("text"));
     bar.createDiv({ cls: "zyxdraw-toolbar-separator" });
@@ -1069,6 +1159,41 @@ export class DrawingEditor {
     this.drawSelectionBox(g.box, shape);
   }
 
+  /**
+   * Highlights step `step` of path `path` in the drawing (issue #40): hovering a step in the
+   * left panel or the Attributes. Null clears it.
+   */
+  highlightStep(path: string | null, step: number | null): void {
+    this.svg?.querySelector(".zyxdraw-step-overlay")?.remove();
+    const t = this.target();
+    if (!this.svg || !t || !path || step === null) return;
+    const shape = allShapes(t.scene).find((s) => s.path === path);
+    const found = shape && stepsOf(t.scene, shape);
+    const s = found?.steps[step];
+    if (!shape || !found || !s) return;
+    const doc = this.svg.ownerDocument;
+    const group = (parent: Element, transform: string) => {
+      const el = doc.createElementNS(SVG_NS, "g");
+      if (transform) el.setAttribute("transform", transform);
+      parent.appendChild(el);
+      return el;
+    };
+    const root = group(this.svg, "");
+    root.classList.add("zyxdraw-overlay", "zyxdraw-step-overlay");
+    // Where the path is drawn: its groups' and its own rotate / scale, then where its numbers start.
+    const tr = overlayTransforms(t.scene, shape);
+    const inner = group(group(group(root, tr.parent), tr.own), `translate(${found.offset.x},${found.offset.y})`);
+    const add = (tag: string, attrs: Record<string, string | number>, cls: string) => {
+      const el = doc.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+      el.setAttribute("vector-effect", "non-scaling-stroke");
+      el.classList.add(cls);
+      inner.appendChild(el);
+    };
+    if (s.highlight) add("path", { d: s.highlight }, "zyxdraw-step-highlight");
+    add("circle", { cx: s.at.x, cy: s.at.y, r: 5 / this.pxPerUnit() }, "zyxdraw-step-point");
+  }
+
   private drawSelectionBox(box: Box, shape: Shape): void {
     const layer = this.layers?.inner;
     if (!layer || !this.svg) return;
@@ -1097,6 +1222,13 @@ export class DrawingEditor {
     const points = t && hasPoints(shape) ? pointHandles(t.scene, shape) : null;
     if (points) {
       for (const p of points) for (const q of p.guides) el("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y }, "zyxdraw-guide");
+      // A path's sides can be grabbed and bent (issue #35): an invisible wide line on each.
+      const bendable = t && bendableSides(t.scene, shape);
+      bendable?.curves.forEach((d, i) => {
+        if (!d) return;
+        const hit = el("path", { d, transform: `translate(${bendable.offset.x},${bendable.offset.y})` }, "zyxdraw-side-hit");
+        hit.dataset.bend = String(i);
+      });
       // Polygon / polyline / path: a dot in the middle of each side adds a point (click or drag).
       ((t && sideHandles(t.scene, shape)) ?? []).forEach((p, i) => {
         const m = el("circle", { cx: p.x, cy: p.y, r: size / 2.5 }, "zyxdraw-midpoint");
@@ -1110,6 +1242,16 @@ export class DrawingEditor {
         h.dataset.point = String(i);
         if (i === this.selectedPoint) h.classList.add("is-selected");
       });
+      // An open path or polyline: a "+" beside each end continues it with the pen (issue #34).
+      for (const end of this.selectedOpenEnds()?.ends ?? []) {
+        const cx = end.x + size * 1.4;
+        const cy = end.y - size * 1.4;
+        const mark = el("circle", { cx, cy, r: size * 0.7 }, "zyxdraw-end-mark");
+        mark.dataset.continue = end.at;
+        mark.setAttribute("aria-label", "Continue the path from here");
+        const s = size * 0.4;
+        el("path", { d: `M ${cx - s} ${cy} H ${cx + s} M ${cx} ${cy - s} V ${cy + s}` }, "zyxdraw-end-mark-plus");
+      }
       return;
     }
 
@@ -1202,6 +1344,11 @@ export class DrawingEditor {
     const selectedBox = selectedShape && geometry(t.scene, selectedShape)?.box;
 
     const on = (attr: string) => (e.target as Element | null)?.closest?.(`[${attr}]`)?.getAttribute(attr) ?? undefined;
+    const mark = on("data-continue");
+    if (mark === "start" || mark === "end") {
+      this.startContinue(mark);
+      return;
+    }
     const point = on("data-point");
     if (point !== undefined && this.selected && selectedBox) {
       this.selectPoint(Number(point));
@@ -1215,6 +1362,18 @@ export class DrawingEditor {
       const el = this.elementFor(this.selected);
       const originalGeometry = GEOMETRY_ATTRS.map((attr) => ({ attr, value: el?.getAttribute(attr) ?? null }));
       this.beginDrag(e, { kind: "insert", path: this.selected, side: Number(side), box: selectedBox, el, originalGeometry });
+      return;
+    }
+    const bend = on("data-bend");
+    if (bend !== undefined && this.selected && selectedBox) {
+      const el = this.elementFor(this.selected);
+      // Ctrl / Cmd held: move the whole path, as dragging it did before (issue #35).
+      if (e.ctrlKey || e.metaKey) {
+        this.beginDrag(e, { kind: "move", path: this.selected, box: selectedBox, el });
+        return;
+      }
+      const originalGeometry = GEOMETRY_ATTRS.map((attr) => ({ attr, value: el?.getAttribute(attr) ?? null }));
+      this.beginDrag(e, { kind: "bend", path: this.selected, side: Number(bend), box: selectedBox, el, originalGeometry });
       return;
     }
     const handle = on("data-handle") as Handle | undefined;
@@ -1272,7 +1431,7 @@ export class DrawingEditor {
     } else if (d.kind === "insert") {
       const m = this.sideMiddle(d.path, d.side!);
       anchor = m ? { x: m.x, y: m.y } : { x: null, y: null };
-    } else if (d.kind === "marquee") {
+    } else if (d.kind === "marquee" || d.kind === "bend") {
       anchor = { x: null, y: null };
     }
     this.drag = {
@@ -1357,6 +1516,11 @@ export class DrawingEditor {
       this.layers?.mid.setAttribute("transform", `translate(${dx},${dy})`);
     } else if (d.kind === "resize") {
       this.drawSelectionBox(resizedBox(d.box, d.handle!, dx, dy), shape);
+    } else if (d.kind === "bend") {
+      // The grabbed spot follows the mouse; the side's curve is previewed on the drawing.
+      const text = bentPointsText(t.scene, shape, d.side!, d.start, dx, dy, this.fmt);
+      const geo = text !== null ? previewGeometry(t.scene, shape, text) : null;
+      if (geo && d.el) d.el.setAttribute(geo.attr, geo.value);
     } else if (d.kind === "insert") {
       const text = insertedPointsText(shape, d.side!, dx, dy, this.fmt);
       const geo = text !== null ? previewGeometry(t.scene, shape, text) : null;
@@ -1436,7 +1600,9 @@ export class DrawingEditor {
           ? resizeShape(t, d.path, resizedBox(d.box, d.handle!, dx, dy), opts)
           : d.kind === "insert"
             ? insertPoint(t, d.path, d.side!, dx, dy, this.fmt)
-            : movePoint(t, d.path, d.point!, dx, dy, { free: e.altKey });
+            : d.kind === "bend"
+              ? bendSide(t, d.path, d.side!, d.start, dx, dy, this.fmt)
+              : movePoint(t, d.path, d.point!, dx, dy, { free: e.altKey });
     if (edit.edits.length === 0) this.restore(d);
     else if (d.kind === "point" || d.kind === "insert") {
       // The new point is selected, and its numbers shown in the text.
@@ -1494,8 +1660,32 @@ export class DrawingEditor {
       return;
     }
     if (this.tool === "line") return;
+    // Double-click a point of the selected path: switch it between corner and smooth (issue #35).
+    const point = (e.target as Element | null)?.closest?.("[data-point]")?.getAttribute("data-point");
+    if (point !== undefined && point !== null && this.selected) {
+      this.toggleSmooth(Number(point));
+      return;
+    }
     const hit = this.shapeAt(e);
     if (hit) this.select(hit.path);
+  }
+
+  /** The kind of point `index` of the selected path: smooth, corner, or null (cannot switch). */
+  private selectedPointKind(index: number): "smooth" | "corner" | null {
+    const t = this.target();
+    const shape = t && this.selected ? allShapes(t.scene).find((s) => s.path === this.selected) : undefined;
+    return shape ? pointKind(shape, index) : null;
+  }
+
+  /** Makes point `index` of the selected path smooth or a corner (null: the other of what it is). */
+  private toggleSmooth(index: number, smooth?: boolean): void {
+    const path = this.selected;
+    const kind = this.selectedPointKind(index);
+    if (!path || !kind) return;
+    const on = smooth ?? kind === "corner";
+    // Handles are added or removed, so point numbers after this one change: select none.
+    this.selectedPoint = null;
+    this.run((t) => setPointSmooth(t, path, index, on, this.fmt));
   }
 
   // ---- menu and keyboard ------------------------------------------------------------------
@@ -1517,6 +1707,11 @@ export class DrawingEditor {
       e.preventDefault();
       this.selectPoint(Number(point));
       const menu = new Menu();
+      const end = this.selectedOpenEnds()?.ends.find((x) => x.point === Number(point));
+      if (end) menu.addItem((i) => i.setTitle("Continue path").setIcon("pen-tool").onClick(() => this.startContinue(end.at)));
+      const kind = this.selectedPointKind(Number(point));
+      if (kind === "corner") menu.addItem((i) => i.setTitle("Make smooth").setIcon("spline").onClick(() => this.toggleSmooth(Number(point), true)));
+      if (kind === "smooth") menu.addItem((i) => i.setTitle("Make corner").setIcon("corner-down-right").onClick(() => this.toggleSmooth(Number(point), false)));
       menu.addItem((i) => i.setTitle("Delete point").setIcon("trash").onClick(() => this.deleteSelectedPoint()));
       menu.showAtMouseEvent(e);
       return;
@@ -1560,8 +1755,27 @@ export class DrawingEditor {
     menu.showAtMouseEvent(e);
   }
 
+  /** Pen or polygon: takes back the last point placed. False when nothing is being drawn. */
+  private removeLastPoint(): boolean {
+    if (this.tool === "pen" && this.pen && this.pen.nodes.length > 0) {
+      this.pen.nodes.pop();
+      this.pen.press = null;
+      // Continuing: taking back the end it started from stops continuing.
+      if (this.pen.nodes.length === 0) this.pen.cont = undefined;
+    } else if (this.tool === "polygon" && this.draft && this.draft.points.length > 0) {
+      this.draft.points.pop();
+    } else return false;
+    this.renderDraft();
+    return true;
+  }
+
   private onKeyDown(e: KeyboardEvent): void {
     const mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && this.removeLastPoint()) {
+      // While drawing, undo takes back the last point placed, like Backspace (issue #33).
+      e.preventDefault();
+      return;
+    }
     if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
       if (e.shiftKey) this.host.redo();
@@ -1623,17 +1837,15 @@ export class DrawingEditor {
       const pen = this.pen;
       if (e.key === "Enter") this.finishPen(false);
       else if (e.key === "Escape") {
-        // First Escape drops the points placed, the second leaves the tool.
-        if (pen.nodes.length > 0) {
-          pen.nodes = [];
-          pen.press = null;
-        } else this.setTool("select");
-        this.renderDraft();
-      } else if (e.key === "Backspace" || e.key === "Delete") {
-        pen.nodes.pop();
-        pen.press = null;
-        this.renderDraft();
-      } else return;
+        // Escape stops (issue #33): with 2 or more points the path is kept, open, so a wrong
+        // click never costs the whole path. With fewer, it leaves the tool.
+        if (pen.nodes.length >= 2) this.finishPen(false);
+        else {
+          this.setTool("select");
+          this.renderDraft();
+        }
+      } else if (e.key === "Backspace" || e.key === "Delete") this.removeLastPoint();
+      else return;
       e.preventDefault();
       return;
     }
@@ -1644,10 +1856,8 @@ export class DrawingEditor {
         if (this.draft.points.length > 0) this.draft.points = [];
         else this.setTool("select");
         this.renderDraft();
-      } else if (e.key === "Backspace" || e.key === "Delete") {
-        this.draft.points.pop();
-        this.renderDraft();
-      } else return;
+      } else if (e.key === "Backspace" || e.key === "Delete") this.removeLastPoint();
+      else return;
       e.preventDefault();
       return;
     }
@@ -1751,7 +1961,7 @@ export class DrawingEditor {
     if (shape && !canAddPoints(shape)) {
       new Notice(
         shape.type === "path"
-          ? "ZyxDraw: points can be deleted from paths written with absolute M, L, H, V, C and Z only. Press Escape, then Delete, to delete the whole shape"
+          ? "ZyxDraw: points cannot be deleted from this path: its `d` has calculations, or cannot be read. Press Escape, then Delete, to delete the whole shape"
           : "ZyxDraw: points can be deleted from polygons, polylines and paths. Press Escape, then Delete, to delete the whole shape",
       );
       return;

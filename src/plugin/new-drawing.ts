@@ -1,7 +1,7 @@
 // "New ZyxDraw drawing" and "New ZyxDraw library": ask for the name first, so the file never
 // needs renaming.
 import { App, Modal, normalizePath } from "obsidian";
-import { drawingBaseName, freeName, libraryBaseName } from "./file-name";
+import { drawingBaseName, freeName, libraryBaseName, pathTaken } from "./file-name";
 
 /** What the dialog creates. */
 export interface NewFileKind {
@@ -94,10 +94,12 @@ export class NewDrawingModal extends Modal {
     return normalizePath(`${this.base()}${this.kind.file(name)}`);
   }
 
-  /** Case-insensitive, as on Windows and macOS. Also checks inside subfolders (`cloud.aws`). */
+  /**
+   * Case-insensitive, as on Windows and macOS, also inside subfolders (`cloud.aws`). Only the
+   * folders on the new file's path are looked at, not the whole vault (issue #44).
+   */
   private exists(name: string): boolean {
-    const path = this.pathFor(name).toLowerCase();
-    return this.app.vault.getAllLoadedFiles().some((f) => f.path.toLowerCase() === path);
+    return pathTaken(this.app.vault.getRoot(), this.pathFor(name));
   }
 
   private async submit(): Promise<void> {

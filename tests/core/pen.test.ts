@@ -146,8 +146,8 @@ describe("editing path points", () => {
     expect(deletePoint(target(CANVAS + 'p is path(d="M 0,0 L 40,0")\n'), "p", 1).notices[0]).toContain("at least 2");
   });
 
-  it("does not add points to paths with relative commands or arcs", () => {
+  it("adds points to paths with relative commands and arcs too (#37)", () => {
     const t = target(CANVAS + 'p is path(d="M 0 0 l 10 0 A 5 5 0 0 1 20 0")\n');
-    expect(canAddPoints(findShape(t.scene, "p")!)).toBe(false);
+    expect(canAddPoints(findShape(t.scene, "p")!)).toBe(true);
   });
 });

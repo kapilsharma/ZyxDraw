@@ -55,7 +55,8 @@ export class LayersView implements PanelView {
   ) {
     this.el = parent.createDiv({ cls: "zyxdraw-layers" });
     const head = this.el.createDiv({ cls: "zyxdraw-layers-header" });
-    head.createSpan({ cls: "zyxdraw-layers-title", text: "Layers" });
+    // The tab above already says "Layers" (issue #42): the header only holds the buttons.
+    head.createSpan({ cls: "zyxdraw-layers-title" });
     const button = (icon: string, label: string, onClick: () => void) => {
       const b = head.createEl("button", { cls: "clickable-icon", attr: { "aria-label": label } });
       setIcon(b, icon);

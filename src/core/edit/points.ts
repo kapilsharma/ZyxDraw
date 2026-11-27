@@ -9,7 +9,7 @@ import type { Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 import { shapeTransform, transformAbout } from "../transform";
 import { appendLine, blank, canEdit, editableShape, geometry, moveLineEnd, newShapeName, normalizeEdits, StatementEditor, type EditResult, type EditTarget, type TextEdit } from "./edit";
-import { deletePathNode, isSimplePath, pathSides, penPathData, splitPathSide, type PenNode } from "./path-nodes";
+import { bendPathSide, continuePathText, deletePathNode, isEditablePath, openPathEnds, pathNodeKind, pathSideCurves, pathSides, pathSteps, penPathData, setPathNodeSmooth, splitPathSide, type PathStep, type PenNode, type Pt } from "./path-nodes";
 
 export interface PointHandle {
   /** Position in frame coordinates, before rotate / scale (see `overlayTransforms`). */
@@ -179,12 +179,96 @@ export function insertPath(target: EditTarget, nodes: PenNode[], closed: boolean
   return result;
 }
 
+// ---- continuing an open path or polyline (issue #34) -----------------------------------------
+
+/** An end of an open path or polyline: where it is (frame coordinates) and its point's index. */
+export interface OpenEnd {
+  at: "start" | "end";
+  x: number;
+  y: number;
+  /** Index in `pointHandles`. */
+  point: number;
+}
+
+/**
+ * The two ends of an open path or polyline, where drawing can go on; null when it cannot be
+ * continued: closed paths and polygons, paths with several parts or with commands other than
+ * absolute M, L, H, V, C, and shapes turned or scaled (the mouse and the shape's numbers would
+ * not line up).
+ */
+export function openEnds(scene: Scene, shape: Shape): OpenEnd[] | null {
+  if (!canAddPoints(shape) || shape.type === "polygon") return null;
+  if (shape.type === "path") {
+    const d = shape.attrs.get("d");
+    if (d?.value.t !== "str" || !openPathEnds(d.value.v)) return null;
+  }
+  const t = overlayTransforms(scene, shape);
+  if (t.parent || t.own) return null;
+  const points = pointHandles(scene, shape);
+  if (!points) return null;
+  const ends = points.map((p, i) => (p.kind === "end" ? i : -1)).filter((i) => i >= 0);
+  if (ends.length < 2) return null;
+  const first = ends[0];
+  const last = ends[ends.length - 1];
+  return [
+    { at: "start", x: points[first].x, y: points[first].y, point: first },
+    { at: "end", x: points[last].x, y: points[last].y, point: last },
+  ];
+}
+
+/**
+ * Continues an open path or polyline from one of its ends (issue #34). `nodes` are pen nodes in
+ * frame coordinates: the first is the end drawing goes on from (its `out` handle, if dragged,
+ * curves the first new side), then the new points. Only the new part is written: added at the end
+ * of `d` / `points`, or at the start, where the new points come first and the old `M` point
+ * becomes a line or curve to them. `close`: the last new point is joined to the other end (`Z`);
+ * a polyline cannot be closed.
+ */
+export function continuePath(target: EditTarget, path: string, at: "start" | "end", nodes: PenNode[], close: boolean, fmt: NumberFormat): EditResult {
+  if (nodes.length < 2) {
+    const result = blank();
+    result.notices.push("Place at least one new point to continue the path");
+    return result;
+  }
+  const result = editPoints(target, path, (shape, value) => {
+    // The shape's place on the drawing (inside its groups), as for its point handles.
+    const g = geometry(target.scene, shape);
+    if (!g || !openEnds(target.scene, shape)) return "only open paths and polylines that are not turned or scaled can be continued";
+    const off = offset(shape, g.box);
+    const own = (p: Pt): Pt => ({ x: Number(fmt(p.x - off.x)), y: Number(fmt(p.y - off.y)) });
+    const local: PenNode[] = nodes.map((n) => ({ ...own(n), in: n.in && own(n.in), out: n.out && own(n.out) }));
+    if (shape.type === "polyline") {
+      if (close) return "a polyline cannot be closed: change `polyline` to `polygon` to close it";
+      return polylineContinue(value, at, local.slice(1), fmt);
+    }
+    const d = continuePathText(value, at, local, close);
+    return typeof d === "string" ? changed(value, d) : d.error;
+  });
+  if (result.edits.length > 0) result.select = path;
+  return result;
+}
+
+/** New points for a polyline's `points`, at its start or end, with the separators it already uses. */
+function polylineContinue(value: string, at: "start" | "end", added: Pt[], fmt: NumberFormat): { start: number; end: number; insert: string } | string {
+  const t = numbers(value);
+  if (t.length < 4 || t.length % 2 !== 0) return "the points of this polyline cannot be read";
+  const within = value.slice(t[0].end, t[1].start) || ",";
+  const between = value.slice(t[1].end, t[2].start) || " ";
+  const one = (p: Pt) => `${fmt(p.x)}${within}${fmt(p.y)}`;
+  if (at === "end") {
+    const after = t[t.length - 1].end;
+    return { start: after, end: after, insert: added.map((p) => between + one(p)).join("") };
+  }
+  const before = t[0].start;
+  return { start: before, end: before, insert: [...added].reverse().map((p) => one(p) + between).join("") };
+}
+
 /** Shapes that can get and lose points: polygon, polyline, and paths of lines and curves. */
 export function canAddPoints(shape: Shape): boolean {
   if (!hasPoints(shape)) return false;
   if (shape.type === "polygon" || shape.type === "polyline") return true;
   const d = shape.attrs.get("d");
-  return shape.type === "path" && d?.value.t === "str" && isSimplePath(d.value.v);
+  return shape.type === "path" && d?.value.t === "str" && isEditablePath(d.value.v);
 }
 
 /**
@@ -228,7 +312,7 @@ export function insertPoint(target: EditTarget, path: string, side: number, dx: 
     const split = splitPathSide(value, side, dx, dy, (n) => Number(fmt(n)));
     if (typeof split === "string") return split;
     point = endHandleIndex(split.d, split.node);
-    return { start: 0, end: value.length, insert: split.d };
+    return changed(value, split.d);
   });
   if (result.edits.length > 0) result.point = point;
   return result;
@@ -266,7 +350,7 @@ export function deletePoint(target: EditTarget, path: string, index: number): Ed
       if (h.kind !== "end") return "this is a curve handle: select a point on the outline to delete it";
       const node = parsed.handles.slice(0, index).filter((x) => x.kind === "end").length;
       const d = deletePathNode(value, node);
-      return typeof d === "string" ? { start: 0, end: value.length, insert: d } : d.error;
+      return typeof d === "string" ? changed(value, d) : d.error;
     }
     const t = numbers(value);
     const n = t.length / 2;
@@ -294,6 +378,142 @@ function pointsInsert(value: string, side: number, closed: boolean, dx: number, 
   const between = n > 1 ? value.slice(t[1].end, t[2].start) || " " : " ";
   const at = t[2 * side + 1].end;
   return { start: at, end: at, insert: `${between}${fmt(x)}${within}${fmt(y)}` };
+}
+
+// ---- bending sides and corner / smooth points (issue #35) -------------------------------------
+
+/**
+ * The sides of a selected path that can be bent by dragging them, as path text in the path's
+ * own numbers (null for an arc), and where those numbers are drawn (`offset`, frame
+ * coordinates before rotate / scale). Null for other shapes.
+ */
+export function bendableSides(scene: Scene, shape: Shape): { curves: (string | null)[]; offset: { x: number; y: number } } | null {
+  if (shape.type !== "path" || !canAddPoints(shape)) return null;
+  const d = shape.attrs.get("d");
+  const g = geometry(scene, shape);
+  const curves = d?.value.t === "str" ? pathSideCurves(d.value.v) : null;
+  return curves && g ? { curves, offset: offset(shape, g.box) } : null;
+}
+
+/**
+ * Bends side `side` of a path (issue #35): the spot `grab` (frame coordinates, before rotate /
+ * scale) moves by (dx, dy) and the side becomes a curve through it.
+ */
+export function bendSide(target: EditTarget, path: string, side: number, grab: { x: number; y: number }, dx: number, dy: number, fmt: NumberFormat): EditResult {
+  return editPoints(target, path, (shape, value) => {
+    if (shape.type !== "path") return "only the sides of a path can be bent";
+    const g = geometry(target.scene, shape);
+    if (!g) return "this path is not drawn";
+    const off = offset(shape, g.box);
+    const d = bendPathSide(value, side, { x: grab.x - off.x, y: grab.y - off.y }, dx, dy, (n) => Number(fmt(n)));
+    return typeof d === "string" ? changed(value, d) : d.error;
+  });
+}
+
+/** The `d` text after `bendSide`, for a live preview while dragging; null if the side cannot be bent. */
+export function bentPointsText(scene: Scene, shape: Shape, side: number, grab: { x: number; y: number }, dx: number, dy: number, fmt: NumberFormat): string | null {
+  const sides = bendableSides(scene, shape);
+  const d = shape.attrs.get("d");
+  if (!sides || d?.value.t !== "str") return null;
+  const out = bendPathSide(d.value.v, side, { x: grab.x - sides.offset.x, y: grab.y - sides.offset.y }, dx, dy, (n) => Number(fmt(n)));
+  return typeof out === "string" ? out : null;
+}
+
+/** The node (point on the outline) of handle `index` of a path, or null for a curve handle. */
+function nodeOf(shape: Shape, index: number): number | null {
+  const parsed = rawHandles(shape);
+  const h = parsed?.handles[index];
+  if (!parsed || !h || h.kind !== "end") return null;
+  return parsed.handles.slice(0, index).filter((x) => x.kind === "end").length;
+}
+
+/**
+ * Whether point `index` of a path is smooth or a corner (issue #35); null when it cannot be
+ * switched (not a path, a curve handle, an end of an open path, next to an arc).
+ */
+export function pointKind(shape: Shape, index: number): "smooth" | "corner" | null {
+  if (shape.type !== "path" || !canAddPoints(shape)) return null;
+  const d = shape.attrs.get("d");
+  const node = nodeOf(shape, index);
+  return node === null || d?.value.t !== "str" ? null : pathNodeKind(d.value.v, node);
+}
+
+/** Makes point `index` of a path smooth or a corner (issue #35). */
+export function setPointSmooth(target: EditTarget, path: string, index: number, smooth: boolean, fmt: NumberFormat): EditResult {
+  return editPoints(target, path, (shape, value) => {
+    const node = shape.type === "path" ? nodeOf(shape, index) : null;
+    if (node === null) return "only points on the outline of a path can be made smooth or a corner";
+    const d = setPathNodeSmooth(value, node, smooth, (n) => Number(fmt(n)));
+    return typeof d === "string" ? changed(value, d) : d.error;
+  });
+}
+
+// ---- a path's steps in plain words (issue #40) -------------------------------------------------
+
+/** The steps of a path's `d` in plain words, and where its own numbers are drawn; null for other shapes. */
+export function stepsOf(scene: Scene, shape: Shape): { steps: PathStep[]; offset: { x: number; y: number } } | null {
+  const d = shape.attrs.get("d");
+  const g = geometry(scene, shape);
+  if (shape.type !== "path" || d?.value.t !== "str" || !g || !shape.pathData) return null;
+  const steps = pathSteps(d.value.v);
+  return steps ? { steps, offset: offset(shape, g.box) } : null;
+}
+
+/**
+ * The path whose `d` is at text position `pos` (on the attribute's name or its text), with its
+ * steps: for the hover in the left panel. Null elsewhere.
+ */
+export function stepsAt(target: EditTarget, pos: number): { path: string; steps: PathStep[] } | null {
+  for (const shape of allShapesOf(target.scene)) {
+    if (shape.type !== "path" || shape.generated || shape.instanceOf) continue;
+    if (pos < shape.source.range.start || pos > shape.source.range.end) continue;
+    const attr = new StatementEditor(target.source, shape.source, shape.spec.aliases).find("d");
+    if (!attr || pos < attr.range.start || pos > attr.range.end) continue;
+    const found = stepsOf(target.scene, shape);
+    if (found) return { path: shape.path, steps: found.steps };
+  }
+  return null;
+}
+
+/** Every shape of the scene, nested ones too. */
+function allShapesOf(scene: Scene): Shape[] {
+  const out: Shape[] = [];
+  const walk = (list: Shape[]) => {
+    for (const s of list) {
+      out.push(s);
+      walk(s.children ?? []);
+    }
+  };
+  walk(scene.roots);
+  return out;
+}
+
+/**
+ * Changes number `index` of a path's `d` (counting every number in its steps) to `text`: only
+ * that number changes in the text (issue #40).
+ */
+export function setPathNumber(target: EditTarget, path: string, index: number, text: string): EditResult {
+  return editPoints(target, path, (shape, value) => {
+    if (shape.type !== "path") return "only a path has steps";
+    const n = pathSteps(value)?.flatMap((s) => s.numbers)[index];
+    if (!n) return "this number cannot be found in `d`";
+    const t = text.trim();
+    if (!/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(t)) return `\`${t}\` is not a number`;
+    if (n.label.includes("(1)") && t !== "0" && t !== "1") return `${n.label}: write 1 or 0`;
+    // A number written straight after another one needs a space before it (`10-5` -> `10 5`).
+    const before = value[n.start - 1];
+    const space = before !== undefined && /[\d.]/.test(before) ? " " : "";
+    return { start: n.start, end: n.end, insert: space + t };
+  });
+}
+
+/** The smallest change from `before` to `after`: the text both share at the start and end is kept. */
+function changed(before: string, after: string): { start: number; end: number; insert: string } {
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  let end = 0;
+  while (end < before.length - start && end < after.length - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end++;
+  return { start, end: before.length - end, insert: after.slice(start, after.length - end) };
 }
 
 /** Changes the `points` text of a polygon / polyline as written in the user's file. */

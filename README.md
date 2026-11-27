@@ -79,7 +79,7 @@ Paste the answer into a `.zyxd` file and the drawing appears. Then drag shapes i
 | ------- | ----------------- |
 | [Editing in the drawing area](docs/editing.md#editing-in-the-drawing-area) | Select, move, resize, edit points, group, copy and paste, draw lines, polygons and curves, snap to a grid, undo |
 | Text editor | Syntax colors, autocomplete, problems underlined with the reason, `Ctrl`+click to go to a definition |
-| [Attributes and Layers](docs/editing.md#getting-started) | The **Attributes** of the selected shape in the bottom panel, and the **Layers** in the right panel |
+| [Attributes, Layers and Help](docs/editing.md#getting-started) | The **Attributes** of the selected shape in the bottom panel, and the **Layers** and **Help** tabs in the right panel. **Help** explains the tool in use |
 | [Custom shapes and libraries](docs/language.md#custom-shapes-and-libraries) | Shapes with parameters, kept in `.zyxdl` library files and shared by many drawings. [Ready-made libraries](library/README.md) included |
 | [Gradients](docs/language.md#gradients) and [clipping](docs/language.md#clipping) | Smooth color blends and cut-out shapes, written as plain SVG |
 | [Infinite canvas](docs/language.md#position-and-size) | `canvas(infinite)` for drawings that keep growing |
@@ -105,7 +105,7 @@ To install by hand instead, download `main.js`, `manifest.json` and `styles.css`
 
 ## Privacy
 
-ZyxDraw works offline and sends nothing anywhere. It uses the clipboard only when you copy, cut or paste shapes, or choose **Copy as SVG / PNG**.
+ZyxDraw works offline and sends nothing anywhere. It uses the clipboard only when you copy, cut or paste shapes, or choose **Copy as SVG / PNG**. It never lists the files of your vault: it opens the drawings you open, the libraries they import (by name, in their own folder or the library folder), and, when you create a file, looks only in the folder it goes into.
 
 ## Contributing
 

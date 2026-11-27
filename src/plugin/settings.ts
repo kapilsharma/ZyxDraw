@@ -23,6 +23,8 @@ export interface ZyxSettings {
   showLayers: boolean;
   /** Width of the right panel, as a fraction of the view (drag to change). */
   rightPanelWidth: number;
+  /** The right panel's tab you were on (issue #42), used for newly opened drawings. */
+  rightPanelTab: RightPanelTab;
   /** Height of the bottom panel, as a fraction of the drawing area's column (drag to change). Key kept for saved settings. */
   propertiesHeight: number;
   /** Grid lines over the drawing view. */
@@ -35,6 +37,10 @@ export interface ZyxSettings {
 
 export type Guide = "grid" | "coordinates";
 
+/** Tabs of the right panel, left to right (issue #42). */
+export const RIGHT_PANEL_TABS = ["layers", "help"] as const;
+export type RightPanelTab = (typeof RIGHT_PANEL_TABS)[number];
+
 export const DEFAULT_SETTINGS: ZyxSettings = {
   defaultUnit: "percent",
   defaultMode: "split",
@@ -45,6 +51,7 @@ export const DEFAULT_SETTINGS: ZyxSettings = {
   propertiesHeight: 0.35,
   showLayers: true,
   rightPanelWidth: 0.2,
+  rightPanelTab: "layers",
   showGrid: false,
   showCoordinates: true,
   pngScale: 2,

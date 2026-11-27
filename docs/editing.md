@@ -8,7 +8,8 @@
   - **Left panel:** the text.
   - **Drawing area:** the drawing and its toolbar.
   - **Bottom panel**, under the drawing area: the **Attributes** of the selected shape. The **Attributes** button in the view header shows or hides it.
-  - **Right panel**: the **Layers**. The **Layers** button in the view header shows or hides it.
+  - **Right panel**: two tabs, **Layers** and **Help**. The **Layers and help** button in the view header shows or hides it, and the tab you were on is remembered.
+    - **Help** shows short help for the tool in use: what it is for, and what each click, drag and key does. It follows the tool you pick, but it never opens by itself: click the **Help** tab when you want it.
 - **Three views:** buttons in the view header, or the `ZyxDraw: Show ...` commands.
   - Text and drawing side by side (left panel and drawing area)
   - Text only (left panel)
@@ -27,6 +28,9 @@
 | Move | Drag, or arrow keys (Shift for 10 px) |
 | Resize | Drag a handle (rectangles, circles, ellipses, groups with a size) |
 | Edit points | Select a path, polygon, polyline or line: drag its points (squares) or curve control points (circles). A point takes its curve handles along, and a smooth point stays smooth when you drag one of its handles (hold `Alt` to make a corner). Only those numbers change in the text. With text and drawing side by side, clicking a point selects its numbers in the text |
+| Read a path in plain words | Hover over a path's `d` in the text: a numbered list explains each step, for example "1. Start at 100, 100 · 2. Straight line to 150, 50 · 3. Close the shape". The Attributes of a selected path show the same steps under **Steps of d**, with a small field for each number: changing one changes only that number in the text. Hovering a step in either list highlights it in the drawing |
+| Bend a side | Select a path and drag one of its sides (the line itself, not the dot in its middle): the side becomes a curve through the spot you hold. A curve can be reshaped the same way. To move the whole path instead, hold `Ctrl` (`Cmd` on Mac) while dragging, or use the arrow keys. Arcs cannot be bent |
+| Corner or smooth | Double-click a point of a selected path, or right-click it: **Make smooth** / **Make corner**. Smooth gives the point two handles in a line, along the direction of the points on either side. Corner removes its handles; a side left with no handle becomes a straight line again. Not for the ends of an open path, or points next to an arc |
 | Delete | `Delete` or `Backspace` |
 | Copy, cut, paste | `Ctrl+C`, `Ctrl+X`, `Ctrl+V` (`Cmd` on Mac), or right-click. Shapes are copied as Zyxd text, so they also paste into the text editor or another drawing. Names already used get a number (`box` → `box1`) |
 | Duplicate | `Ctrl+D`, or right-click: a copy 10 px down and right, drawn on top |
@@ -36,16 +40,48 @@
 | Find in text | Right-click: Show in text |
 | Add a shape | Toolbar: rectangle, circle, text |
 | Draw a line | Toolbar line button (`L`): drag, or click both ends. Hold `Shift` for 45° steps |
-| Draw a polygon | Toolbar polygon button (`P`): click to place points, click the first point or press `Enter` to finish |
-| Draw a path (pen) | Toolbar pen button (`B`): click for a corner, press and drag for a smooth curve. Click the first point to close the shape, or press `Enter` (or double-click) to leave it open. `Backspace` removes the last point |
-| Add / delete points | On a selected polygon, polyline or path, click or drag the dot in the middle of a side to add a point (on a curve, it splits the curve without changing its shape); click a point and press `Delete` to remove it |
+| Draw a polygon | Toolbar polygon button (`P`): click to place points, click the first point or press `Enter` to finish. `Backspace` or `Ctrl+Z` removes the last point |
+| Draw a path (pen) | Toolbar pen button (`B`): click for a corner; for a curve, keep the mouse button pressed and drag. Click the first point to close the shape, or press `Enter` (or double-click) to leave it open. `Backspace` or `Ctrl+Z` removes the last point. `Esc` stops: with 2 or more points the path is kept, open. See [Drawing curves](#drawing-curves) |
+| Continue a path | Select an open path or polyline: a **+** appears beside each end. Click it, or with the pen tool click the end itself, or right-click the end: **Continue path**. Then draw as usual: click for a corner, press and drag for a curve; `Enter` or double-click finishes, and clicking the other end closes the path. Only the new part is added to the text, at the start or the end. Not for closed paths, polygons, paths with several parts, or turned and scaled shapes; a polyline gets straight sides and cannot be closed |
+| Add / delete points | On a selected polygon, polyline or path, click or drag the dot in the middle of a side to add a point (on a curve or arc, it splits it without changing its shape); click a point and press `Delete` to remove it. Works with every path command, absolute or relative: only the commands next to the point change, and a relative path stays relative |
 | Attributes | Attributes button in the view header: a form under the drawing for the selected shape, or the canvas when nothing is selected. Press Enter or leave the field to apply; clear a field to remove the attribute |
 | Zoom | Toolbar, or `Ctrl` + mouse wheel |
 | Grid | Toolbar grid button: lines spaced to suit the zoom. While it is shown, moving, resizing and point dragging snap to it; hold `Alt` to drag freely |
 | Mouse coordinates | Status bar shows the mouse position over the drawing, in pixels and percent. With a group, custom shape or path selected, also in that shape's own numbers (what you type in `d` or `points`). Toolbar crosshair button turns it off |
+| Help for a tool | **Help** tab in the right panel: the tool in use, its keys and mouse actions. Toolbar buttons also have a short tooltip |
 | Undo / redo | `Ctrl+Z` / `Ctrl+Shift+Z` (also in the drawing) |
 
 Every drawing edit changes only the numbers it must in the text, keeps their unit (`10%` stays a percent), and is one undo step. Comments and formatting are kept. Dragging a shape that is anchored (`right-of=api 60`) along that axis replaces the anchor with a position, and a notice says so.
+
+While the line, polygon or pen tool is in use, a hint line at the bottom of the drawing area shows its keys. The **Help** tab in the right panel explains each tool in more detail.
+
+### Drawing curves
+
+The pen tool (`B`) draws curves. The trick is to **keep the mouse button pressed**: a click makes a corner, and pressing then dragging makes a smooth point. The further you drag, the rounder the curve.
+
+For example, to draw a hill:
+
+1. Press `B`.
+2. Click at the bottom left: the start.
+3. Press at the top, keep the button down, and drag to the right. Let go: the curve bends over the top.
+4. Click at the bottom right, then press `Enter`.
+
+ZyxDraw adds one line to the text:
+
+```zyxd
+path1 is path(d="M 20,100 C 20,100 70,40 100,40 C 130,40 180,100 180,100", fill=none, stroke=black)
+```
+
+The `C` parts are the curves. Their numbers are the handles you pulled out. To change the curve later, select the path and drag its points (squares) or handles (circles).
+
+You can also draw only corners first, then add the curves:
+
+- **Bend a side:** select the path and drag a side. It becomes a curve through the spot you hold.
+- **Smooth a corner:** double-click a point. It gets two handles and the path runs smoothly through it. Double-click again to make it a corner.
+
+Made a wrong click? `Backspace` or `Ctrl+Z` (`Cmd+Z` on Mac) removes the last point, and you go on drawing. `Esc` stops: with 2 or more points, the path is kept as it is.
+
+Finished too early, for example by a double-click? Select the path and click the **+** beside one of its ends: the pen goes on from there.
 
 ## Commands
 
@@ -69,6 +105,14 @@ ZyxDraw uses the system clipboard only when you ask it to:
 - It **reads** the clipboard only when you paste into the drawing (`Ctrl+V`, or **Paste** in the right-click menu).
 
 Nothing is read in the background, and nothing leaves your device.
+
+### Files ZyxDraw reads
+
+ZyxDraw never lists all the files in your vault. It reads:
+
+- the drawing or library you open, and the drawings shown in your notes;
+- the libraries a drawing imports, looked up by name in the drawing's folder and in the library folder from the settings;
+- when you create a drawing or library, only the folder it goes into, to check that the name is free.
 
 ## Settings
 
