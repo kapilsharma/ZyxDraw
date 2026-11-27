@@ -9,7 +9,7 @@ import type { Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 import { shapeTransform, transformAbout } from "../transform";
 import { appendLine, blank, canEdit, editableShape, geometry, moveLineEnd, newShapeName, normalizeEdits, StatementEditor, type EditResult, type EditTarget, type TextEdit } from "./edit";
-import { deletePathNode, isSimplePath, openPathEnds, pathSides, penClose, penEdges, penPathData, reversePen, splitPathSide, type PenNode, type Pt } from "./path-nodes";
+import { continuePathText, deletePathNode, isEditablePath, openPathEnds, pathSides, penPathData, splitPathSide, type PenNode, type Pt } from "./path-nodes";
 
 export interface PointHandle {
   /** Position in frame coordinates, before rotate / scale (see `overlayTransforms`). */
@@ -241,25 +241,8 @@ export function continuePath(target: EditTarget, path: string, at: "start" | "en
       if (close) return "a polyline cannot be closed: change `polyline` to `polygon` to close it";
       return polylineContinue(value, at, local.slice(1), fmt);
     }
-    const ends = openPathEnds(value);
-    if (!ends) return "only open paths with one part can be continued";
-    const tail = value.trimEnd().length;
-    if (at === "end") {
-      const added = [penEdges(local), close ? penClose(local[local.length - 1], ends.start) : ""].filter(Boolean).join(" ");
-      return { start: tail, end: tail, insert: ` ${added}` };
-    }
-    // At the start: the new points come first, drawn towards the old start point.
-    const reversed = reversePen(local);
-    const m = value.search(/M/);
-    const mEnd = pathSegments(value)?.[0]?.args[1]?.end;
-    if (m < 0 || mEnd === undefined) return "the start of `d` cannot be found";
-    // Pairs written after the `M` point are lines: keep them lines after the new part.
-    const implicit = /^[\s,]*[-+.\d]/.test(value.slice(mEnd));
-    const head = penPathData(reversed, false) + (implicit ? " L" : "");
-    if (!close) return { start: m, end: mEnd, insert: head };
-    // Closing too: a change at both ends. The middle stays as written.
-    const closing = penClose({ x: ends.end.x, y: ends.end.y }, reversed[0]);
-    return { start: 0, end: value.length, insert: value.slice(0, m) + head + value.slice(mEnd, tail) + " " + closing + value.slice(tail) };
+    const d = continuePathText(value, at, local, close);
+    return typeof d === "string" ? changed(value, d) : d.error;
   });
   if (result.edits.length > 0) result.select = path;
   return result;
@@ -285,7 +268,7 @@ export function canAddPoints(shape: Shape): boolean {
   if (!hasPoints(shape)) return false;
   if (shape.type === "polygon" || shape.type === "polyline") return true;
   const d = shape.attrs.get("d");
-  return shape.type === "path" && d?.value.t === "str" && isSimplePath(d.value.v);
+  return shape.type === "path" && d?.value.t === "str" && isEditablePath(d.value.v);
 }
 
 /**
@@ -329,7 +312,7 @@ export function insertPoint(target: EditTarget, path: string, side: number, dx: 
     const split = splitPathSide(value, side, dx, dy, (n) => Number(fmt(n)));
     if (typeof split === "string") return split;
     point = endHandleIndex(split.d, split.node);
-    return { start: 0, end: value.length, insert: split.d };
+    return changed(value, split.d);
   });
   if (result.edits.length > 0) result.point = point;
   return result;
@@ -367,7 +350,7 @@ export function deletePoint(target: EditTarget, path: string, index: number): Ed
       if (h.kind !== "end") return "this is a curve handle: select a point on the outline to delete it";
       const node = parsed.handles.slice(0, index).filter((x) => x.kind === "end").length;
       const d = deletePathNode(value, node);
-      return typeof d === "string" ? { start: 0, end: value.length, insert: d } : d.error;
+      return typeof d === "string" ? changed(value, d) : d.error;
     }
     const t = numbers(value);
     const n = t.length / 2;
@@ -395,6 +378,15 @@ function pointsInsert(value: string, side: number, closed: boolean, dx: number, 
   const between = n > 1 ? value.slice(t[1].end, t[2].start) || " " : " ";
   const at = t[2 * side + 1].end;
   return { start: at, end: at, insert: `${between}${fmt(x)}${within}${fmt(y)}` };
+}
+
+/** The smallest change from `before` to `after`: the text both share at the start and end is kept. */
+function changed(before: string, after: string): { start: number; end: number; insert: string } {
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  let end = 0;
+  while (end < before.length - start && end < after.length - start && before[before.length - 1 - end] === after[after.length - 1 - end]) end++;
+  return { start, end: before.length - end, insert: after.slice(start, after.length - end) };
 }
 
 /** Changes the `points` text of a polygon / polyline as written in the user's file. */

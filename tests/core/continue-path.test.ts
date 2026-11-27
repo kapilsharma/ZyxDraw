@@ -135,11 +135,10 @@ describe("shapes that cannot be continued", () => {
     return openEnds(scene, shape);
   };
 
-  it("has no open ends: closed paths, polygons, several parts, relative commands, calculations, turned shapes", () => {
+  it("has no open ends: closed paths, polygons, several parts, calculations, turned shapes", () => {
     expect(none('p is path(d="M 10,10 L 50,10 L 30,40 Z")', "p")).toBeNull();
     expect(none('p is polygon(points="10,10 50,10 30,40")', "p")).toBeNull();
     expect(none('p is path(d="M 10,10 L 50,10 M 60,60 L 80,80", fill=none)', "p")).toBeNull();
-    expect(none('p is path(d="M 10,10 l 40,0", fill=none)', "p")).toBeNull();
     expect(none('p is path(d="M 10,10 L (20 + 30),10", fill=none)', "p")).toBeNull();
     expect(none('p is path(d="M 10,10 L 50,10", fill=none, rotate=30)', "p")).toBeNull();
     expect(none('p is rect(width=20, height=20)', "p")).toBeNull();

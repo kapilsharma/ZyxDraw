@@ -1867,7 +1867,7 @@ export class DrawingEditor {
     if (shape && !canAddPoints(shape)) {
       new Notice(
         shape.type === "path"
-          ? "ZyxDraw: points can be deleted from paths written with absolute M, L, H, V, C and Z only. Press Escape, then Delete, to delete the whole shape"
+          ? "ZyxDraw: points cannot be deleted from this path: its `d` has calculations, or cannot be read. Press Escape, then Delete, to delete the whole shape"
           : "ZyxDraw: points can be deleted from polygons, polylines and paths. Press Escape, then Delete, to delete the whole shape",
       );
       return;

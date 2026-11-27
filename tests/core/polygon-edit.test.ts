@@ -52,9 +52,9 @@ describe("adding points", () => {
     expect(insertedPointsText(shape, 0, 0, 5, fmt)).toBe("10,10 55,15 100,10 100,90");
   });
 
-  it("refuses paths with relative commands and points that come from a parameter", () => {
+  it("adds points to relative paths too (#37), and refuses points that come from a parameter", () => {
     const path = CANVAS + 'a is path(d="M 0 0 l 10 10")\n';
-    expect(run(path, (t) => insertPoint(t, "a", 0, 0, 0, fmt)).text).toBe(path);
+    expect(run(path, (t) => insertPoint(t, "a", 0, 0, 0, fmt)).text).toBe(CANVAS + 'a is path(d="M 0 0 l 5 5 l 5 5")\n');
     const param = CANVAS + 'tri is shape(pts="0,0 10,0 5,5"):\n  polygon(points=pts)\nt is tri()\n';
     expect(run(param, (t) => insertPoint(t, "t", 0, 0, 0, fmt)).text).toBe(param);
   });
