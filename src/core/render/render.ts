@@ -135,10 +135,12 @@ class Renderer {
         const b = pathBounds(s.pathData!);
         const dx = box.x - b.minX;
         const dy = box.y - b.minY;
-        const original = s.attrs.get("d");
+        const attr = s.attrs.get("d");
+        // A path written as steps has its compiled `d` (issue #41).
+        const original = s.steps ? s.steps.d : attr?.value.t === "str" ? attr.value.v : undefined;
         const d =
-          Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9 && original?.value.t === "str" && !original.value.v.includes("(")
-            ? original.value.v // unchanged, without calculations: keep the user's formatting
+          Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9 && original !== undefined && !original.includes("(")
+            ? original // unchanged, without calculations: keep the user's formatting
             : formatPath(offsetPath(s.pathData!, dx, dy), fmt);
         a.push(["d", d]);
         break;

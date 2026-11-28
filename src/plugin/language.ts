@@ -1,7 +1,7 @@
 /** Syntax colors and autocomplete for the ZyxDraw editor (CodeMirror 6, provided by Obsidian). */
 import { autocompletion, type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { EditorState, type Extension } from "@codemirror/state";
-import { GRADIENT, SHAPES, STOP, isShapeType, type AttrSpec } from "../core";
+import { GRADIENT, SHAPES, STEP_NAMES, STOP, isShapeType, stepSpec, type AttrSpec } from "../core";
 import { zyxHighlighting } from "./highlight";
 
 const BUILTINS = Object.keys(SHAPES);
@@ -43,10 +43,37 @@ function namesIn(doc: string) {
   return { shapes: [...shapes], styles: [...styles], defs: [...defs], clips: [...clips], gradients: [...gradients] };
 }
 
-/** Paren depth at the end of `text`, and the type of the statement whose `(` is open. */
-function context(text: string): { depth: number; type: string | null } {
+/**
+ * Whether the line starting at `lineStart` is in the block of a `path` (issue #41): the nearest
+ * line above it that is less indented (blank lines and comments aside) begins a path.
+ */
+export function inPathBlock(text: string, lineStart: number): boolean {
+  const indent = /^[ \t]*/.exec(text.slice(lineStart))![0].length;
+  let end = lineStart - 1;
+  while (end > 0) {
+    const start = text.lastIndexOf("\n", end - 1) + 1;
+    const line = text.slice(start, end);
+    end = start - 1;
+    if (line.trim() === "" || line.trim().startsWith("#")) continue;
+    if (/^[ \t]*/.exec(line)![0].length >= indent) continue;
+    return new RegExp(`^\\s*(?:${NAME}\\s+is\\s+)?path\\s*\\(`).test(line);
+  }
+  return false;
+}
+
+/** The steps, for the start of a line in a path's block. */
+function stepOptions(): Completion[] {
+  return STEP_NAMES.map((label) => {
+    const spec = stepSpec(label)!.spec;
+    return { label, type: "keyword", detail: "step", info: spec.about, apply: label === "close" ? "close" : `${label}(` };
+  });
+}
+
+/** Paren depth at the end of `text`, the type of the statement whose `(` is open, and where its line starts. */
+function context(text: string): { depth: number; type: string | null; lineStart: number } {
   let depth = 0;
   let type: string | null = null;
+  let openLine = 0;
   let inString = false;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -63,13 +90,14 @@ function context(text: string): { depth: number; type: string | null } {
     } else if (c === "(") {
       if (depth === 0) {
         const lineStart = text.lastIndexOf("\n", i - 1) + 1;
+        openLine = lineStart;
         // The type: after `is` when the line has a name (`box is rect(`), else the first word.
         type = new RegExp(`^\\s*(?:${NAME}\\s+is\\s+)?(${NAME})`).exec(text.slice(lineStart, i))?.[1] ?? null;
       }
       depth++;
     } else if (c === ")") depth = Math.max(0, depth - 1);
   }
-  return { depth, type };
+  return { depth, type, lineStart: openLine };
 }
 
 function attrSpecs(type: string | null): { names: string[]; spec: (n: string) => AttrSpec | undefined } {
@@ -88,9 +116,25 @@ function complete(ctx: CompletionContext, library: boolean): CompletionResult | 
   if (!word || (word.from === word.to && !ctx.explicit)) return null;
   const doc = ctx.state.doc.toString();
   const before = doc.slice(0, word.from);
-  const { depth, type } = context(before);
+  const { depth, type, lineStart } = context(before);
   const names = namesIn(doc);
   let options: Completion[];
+
+  // In the block of a path written as steps (issue #41): its steps, and their attributes.
+  if (depth === 0) {
+    const ls = before.lastIndexOf("\n") + 1;
+    if (before.slice(ls).trim() === "" && inPathBlock(doc, ls)) return { from: word.from, options: stepOptions(), validFor: /^[\w.-]*$/ };
+  } else if (type && stepSpec(type) && inPathBlock(doc, lineStart)) {
+    const spec = stepSpec(type)!.spec;
+    const eq = /([A-Za-z_][\w-]*)=\s*$/.exec(before);
+    if (eq) {
+      if (eq[1] !== "long" && eq[1] !== "clockwise") return null;
+      options = ["yes", "no"].map((label) => ({ label, type: "enum" }));
+    } else {
+      options = [...spec.attrs, ...spec.named].map((label) => ({ label, type: "property", apply: `${label}=` }));
+    }
+    return { from: word.from, options, validFor: /^[\w.-]*$/ };
+  }
 
   if (depth === 0) {
     const line = before.slice(before.lastIndexOf("\n") + 1);

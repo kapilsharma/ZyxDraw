@@ -7,6 +7,7 @@
 - [Zyxd guide for AI assistants](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/zyxd-for-ai.md): the whole language on one page, with tested examples and common mistakes. Read this first.
 - [Language reference](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/language.md): every shape and attribute in more detail.
 - [Tutorial](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/tutorial.md): first drawings, step by step.
+- [Paths](https://raw.githubusercontent.com/kapilsharma/ZyxDraw/main/docs/paths.md): drawing and editing paths, what the letters of `d` mean, and writing a path as steps.
 
 ## Optional
 

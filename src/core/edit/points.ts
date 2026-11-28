@@ -5,6 +5,7 @@
  */
 import { formatPath, formatPoints, offsetPath, parsePath, parsePoints, pathBounds, pointsBounds, roundedPointsPath } from "../geometry";
 import type { Scene } from "../layout/layout";
+import type { CompiledNumber } from "../resolve/path-steps";
 import type { Shape } from "../resolve/resolve";
 import type { SourceRange } from "../syntax/ast";
 import { shapeTransform, transformAbout } from "../transform";
@@ -82,8 +83,19 @@ export function hasPoints(shape: Shape): boolean {
   // Points written as calculations (`(width - 10)`) are kept: dragging would replace them.
   const geometry = shape.attrs.get(shape.type === "path" ? "d" : "points");
   if (geometry?.value.t === "str" && geometry.value.v.includes("(")) return false;
+  if (shape.steps?.numbers.some((n) => !n.literal)) return false;
   if (shape.type === "line") return !shape.attrs.has("from") && !shape.attrs.has("to");
   return shape.type === "path" || shape.type === "polygon" || shape.type === "polyline";
+}
+
+/**
+ * The `d` or `points` text of a shape: for a path written as steps, the compiled `d` (issue #41).
+ * Undefined when it is not text.
+ */
+function geometryText(shape: Shape): string | undefined {
+  if (shape.steps) return shape.steps.d;
+  const a = shape.attrs.get(shape.type === "path" ? "d" : "points");
+  return a?.value.t === "str" ? a.value.v : undefined;
 }
 
 /** The draggable points of the selected shape, or null if it has none (or they come from elsewhere). */
@@ -123,6 +135,16 @@ export function pointSourceRange(target: EditTarget, path: string, index: number
     const attrs = index === 0 ? [se.find("x1"), se.find("y1")] : index === 1 ? [se.find("x2"), se.find("y2")] : [];
     if (attrs.length !== 2 || !attrs[0] || !attrs[1]) return null;
     return { start: Math.min(attrs[0].range.start, attrs[1].range.start), end: Math.max(attrs[0].range.end, attrs[1].range.end) };
+  }
+  if (shape.steps) {
+    // Written as steps: from the step's first number of this point to its last (issue #41).
+    const parsed = rawHandles(shape);
+    const h = parsed?.handles[index];
+    const ranges = (h ? (h.shown ?? h.targets) : [])
+      .map((t) => stepNumber(shape, parsed!.segments[t.seg].args[t.arg])?.range)
+      .filter((r): r is SourceRange => r !== undefined);
+    if (ranges.length === 0) return null;
+    return { start: Math.min(...ranges.map((r) => r.start)), end: Math.max(...ranges.map((r) => r.end)) };
   }
   const literal = pointsLiteral(target, shape);
   const parsed = rawHandles(shape);
@@ -270,7 +292,8 @@ function polylineContinue(value: string, at: "start" | "end", added: Pt[], fmt: 
 
 /** Shapes that can get and lose points: polygon, polyline, and paths of lines and curves. */
 export function canAddPoints(shape: Shape): boolean {
-  if (!hasPoints(shape)) return false;
+  // A path written as steps: only dragging its points, for now (issue #41).
+  if (!hasPoints(shape) || shape.steps) return false;
   if (shape.type === "polygon" || shape.type === "polyline") return true;
   const d = shape.attrs.get("d");
   return shape.type === "path" && d?.value.t === "str" && isEditablePath(d.value.v);
@@ -457,25 +480,32 @@ export function setPointSmooth(target: EditTarget, path: string, index: number, 
 
 /** The steps of a path's `d` in plain words, and where its own numbers are drawn; null for other shapes. */
 export function stepsOf(scene: Scene, shape: Shape): { steps: PathStep[]; offset: { x: number; y: number } } | null {
-  const d = shape.attrs.get("d");
+  const d = shape.type === "path" ? geometryText(shape) : undefined;
   const g = geometry(scene, shape);
-  if (shape.type !== "path" || d?.value.t !== "str" || !g || !shape.pathData) return null;
-  const steps = pathSteps(d.value.v);
+  if (d === undefined || !g || !shape.pathData) return null;
+  const steps = pathSteps(d);
   return steps ? { steps, offset: offset(shape, g.box) } : null;
 }
 
 /**
  * The path whose `d` is at text position `pos` (on the attribute's name or its text), with its
- * steps: for the hover in the left panel. Null elsewhere.
+ * steps: for the hover in the left panel. For a path written as steps (issue #41), on a step's
+ * line: that step only, and `first` is its index. Null elsewhere.
  */
-export function stepsAt(target: EditTarget, pos: number): { path: string; steps: PathStep[] } | null {
+export function stepsAt(target: EditTarget, pos: number): { path: string; steps: PathStep[]; first: number; asSteps: boolean } | null {
   for (const shape of allShapesOf(target.scene)) {
     if (shape.type !== "path" || shape.generated || shape.instanceOf) continue;
+    if (shape.steps) {
+      const i = shape.steps.steps.findIndex((s) => pos >= s.range.start && pos <= s.range.end);
+      const found = i >= 0 ? stepsOf(target.scene, shape) : null;
+      if (found && found.steps[i]) return { path: shape.path, steps: [found.steps[i]], first: i, asSteps: true };
+      continue;
+    }
     if (pos < shape.source.range.start || pos > shape.source.range.end) continue;
     const attr = new StatementEditor(target.source, shape.source, shape.spec.aliases).find("d");
     if (!attr || pos < attr.range.start || pos > attr.range.end) continue;
     const found = stepsOf(target.scene, shape);
-    if (found) return { path: shape.path, steps: found.steps };
+    if (found) return { path: shape.path, steps: found.steps, first: 0, asSteps: false };
   }
   return null;
 }
@@ -498,18 +528,59 @@ function allShapesOf(scene: Scene): Shape[] {
  * that number changes in the text (issue #40).
  */
 export function setPathNumber(target: EditTarget, path: string, index: number, text: string): EditResult {
+  const shape = editableShape(target.scene, path);
+  if (shape?.path === path && shape.steps) return setStepNumber(target, shape, index, text);
   return editPoints(target, path, (shape, value) => {
     if (shape.type !== "path") return "only a path has steps";
     const n = pathSteps(value)?.flatMap((s) => s.numbers)[index];
     if (!n) return "this number cannot be found in `d`";
     const t = text.trim();
     if (!/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(t)) return `\`${t}\` is not a number`;
-    if (n.label.includes("(1)") && t !== "0" && t !== "1") return `${n.label}: write 1 or 0`;
+    if (FLAGS.has(n.label) && t !== "0" && t !== "1") return `${n.label}: write 1 (yes) or 0 (no)`;
     // A number written straight after another one needs a space before it (`10-5` -> `10 5`).
     const before = value[n.start - 1];
     const space = before !== undefined && /[\d.]/.test(before) ? " " : "";
     return { start: n.start, end: n.end, insert: space + t };
   });
+}
+
+/** An arc's two numbers that are 1 or 0 (in steps: `yes` or `no`). */
+const FLAGS = new Set(["long", "clockwise"]);
+
+/**
+ * Changes number `index` of a path written as steps (issue #41), where its step writes it. A
+ * number left out (an arc's `turn`, `long`, `clockwise`) is added to the step. `long` and
+ * `clockwise` are written `yes` or `no`.
+ */
+function setStepNumber(target: EditTarget, shape: Shape, index: number, text: string): EditResult {
+  const result = blank();
+  if (!canEdit(shape, result)) return result;
+  const steps = shape.steps!;
+  const n = steps.numbers[index];
+  const fail = (why: string) => {
+    result.notices.push(`\`${shape.path}\`: ${why}`);
+    return result;
+  };
+  if (!n || shape.generated || shape.instanceOf) return fail("this number cannot be changed here");
+  if (!n.literal) return fail(`\`${n.name}\` is a calculation in the text: change it there`);
+  let t = text.trim();
+  if (FLAGS.has(n.name)) {
+    if (t === "1" || t === "yes") t = "yes";
+    else if (t === "0" || t === "no") t = "no";
+    else return fail(`${n.name}: write yes or no`);
+  } else if (!/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$/.test(t)) {
+    return fail(`\`${t}\` is not a number`);
+  }
+  if (n.range) {
+    result.edits = [{ from: n.range.start, to: n.range.end, insert: t }];
+    return result;
+  }
+  const step = steps.steps[n.step];
+  if (step.closeParen === undefined) return fail("this step cannot be changed here");
+  const se = new StatementEditor(target.source, step, {});
+  se.set(n.name, t);
+  result.edits = se.edits();
+  return result;
 }
 
 /** The smallest change from `before` to `after`: the text both share at the start and end is kept. */
@@ -525,6 +596,10 @@ function changed(before: string, after: string): { start: number; end: number; i
 function editPoints(target: EditTarget, path: string, change: (shape: Shape, value: string) => { start: number; end: number; insert: string } | string): EditResult {
   const result = blank();
   const shape = editableShape(target.scene, path);
+  if (shape?.path === path && shape.steps) {
+    result.notices.push(`\`${shape.path}\` is written as steps: its points can be dragged, but not added or deleted yet. Right-click it and choose Write as d to do that`);
+    return result;
+  }
   if (!shape || shape.path !== path || !canAddPoints(shape) || !canEdit(shape, result)) return result;
   const literal = pointsLiteral(target, shape);
   if (!literal) {
@@ -560,6 +635,7 @@ export function movePoint(target: EditTarget, path: string, index: number, dx: n
   const shape = editableShape(target.scene, path);
   if (!shape || shape.path !== path || !hasPoints(shape) || !canEdit(shape, result)) return result;
   if (shape.type === "line") return moveLineEnd(target, path, index === 0 ? 0 : 1, dx, dy);
+  if (shape.steps) return moveStepPoint(target, shape, index, dx, dy, options);
   const name = shape.type === "path" ? "d" : "points";
   const literal = pointsLiteral(target, shape);
   if (!literal) {
@@ -585,15 +661,43 @@ export function movePoint(target: EditTarget, path: string, index: number, dx: n
   return result;
 }
 
+/** For a path written as steps: the compiled number a token of its `d` is (issue #41). */
+function stepNumber(shape: Shape, t: NumToken | undefined): CompiledNumber | undefined {
+  return t ? shape.steps?.numbers.find((n) => n.start === t.start) : undefined;
+}
+
+/**
+ * Moves point `index` of a path written as steps (issue #41): each number that changes is
+ * changed where the step writes it, with as many decimals as it has.
+ */
+function moveStepPoint(target: EditTarget, shape: Shape, index: number, dx: number, dy: number, options: PointDragOptions): EditResult {
+  const result = blank();
+  const delta = pointDeltas(shape, index, dx, dy, options);
+  if (!delta) return result;
+  const edits: TextEdit[] = [];
+  for (const [t, d] of delta) {
+    if (d === 0) continue;
+    const n = stepNumber(shape, t);
+    if (!n?.range) {
+      result.notices.push(`\`${shape.path}\`: this point is not written as a number in its step, so it cannot be dragged`);
+      return result;
+    }
+    const written = target.source.slice(n.range.start, n.range.end);
+    edits.push({ from: n.range.start, to: n.range.end, insert: formatLike({ ...t, text: written }, n.value + d) });
+  }
+  result.edits = normalizeEdits(target.source, edits);
+  return result;
+}
+
 /**
  * The shape's `d` / `points` text after moving point `index` by (dx, dy), for a live preview
  * while dragging. Null if the point cannot be moved.
  */
 export function movedPointsText(shape: Shape, index: number, dx: number, dy: number, options: PointDragOptions = {}): string | null {
-  const a = shape.attrs.get(shape.type === "path" ? "d" : "points");
+  const text = geometryText(shape);
   const delta = pointDeltas(shape, index, dx, dy, options);
-  if (!a || a.value.t !== "str" || !delta) return null;
-  return withDeltas(a.value.v, delta);
+  if (text === undefined || !delta) return null;
+  return withDeltas(text, delta);
 }
 
 /**
@@ -703,9 +807,8 @@ function numbers(text: string): NumToken[] {
 
 function rawHandles(shape: Shape): { handles: RawHandle[]; segments: Segment[] } | null {
   if (!hasPoints(shape)) return null;
-  const a = shape.attrs.get(shape.type === "path" ? "d" : "points");
-  if (!a || a.value.t !== "str") return null;
-  const text = a.value.v;
+  const text = geometryText(shape);
+  if (text === undefined) return null;
   if (shape.type !== "path") {
     const nums = numbers(text);
     const segments: Segment[] = [];

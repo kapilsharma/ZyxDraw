@@ -211,7 +211,7 @@ export class AttributesForm implements PanelView {
     if (!found) return;
     const details = this.el.createEl("details", { cls: "zyxdraw-prop-section zyxdraw-steps-section" });
     details.open = !this.stepsClosed;
-    const summary = details.createEl("summary", { text: "Steps of d" });
+    const summary = details.createEl("summary", { text: shape?.steps ? "Steps" : "Steps of d" });
     summary.createSpan({ cls: "zyxdraw-prop-count", text: String(found.steps.length) });
     details.addEventListener("toggle", () => (this.stepsClosed = !details.open));
     const list = details.createEl("ol", { cls: "zyxdraw-steps" });

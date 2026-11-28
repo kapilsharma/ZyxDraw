@@ -31,6 +31,7 @@
 | Read a path in plain words | Hover over a path's `d` in the text: a numbered list explains each step. The Attributes of a selected path show the same steps under **Steps of d**, a field for each number. See [Reading d](paths.md#reading-d) |
 | Bend a side | Select a path and drag one of its sides (the line itself, not the dot in its middle): it bends through the spot you hold; an arc stays part of a circle. `Ctrl` + drag (`Cmd` on Mac) moves the whole path instead. See [Changing a path](paths.md#changing-a-path) |
 | Corner or smooth | Double-click a point of a selected path, or right-click it: **Make smooth** / **Make corner** |
+| Write a path as steps | Right-click a path: **Write as steps** turns its `d` into one step per line (`start`, `line`, `curve`, ...), **Write as d** turns it back. The drawing does not change. See [Paths written as steps](language.md#paths-written-as-steps) |
 | Delete | `Delete` or `Backspace` |
 | Copy, cut, paste | `Ctrl+C`, `Ctrl+X`, `Ctrl+V` (`Cmd` on Mac), or right-click. Shapes are copied as Zyxd text, so they also paste into the text editor or another drawing. Names already used get a number (`box` → `box1`) |
 | Duplicate | `Ctrl+D`, or right-click: a copy 10 px down and right, drawn on top |

@@ -146,3 +146,5 @@ export function brokenReferences(before: string, after: string, options: Compile
   }
   return out;
 }
+export { canWriteAsD, canWriteAsSteps, stepsForD, writeAsD, writeAsSteps } from "./edit/path-steps-edit";
+export { compileSteps, PATH_STEPS, STEP_NAMES, stepSpec, type CompiledSteps, type StepSpec } from "./resolve/path-steps";

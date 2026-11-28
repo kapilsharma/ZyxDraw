@@ -1,6 +1,7 @@
 // The highlight scanner is plain code: test it without an editor.
 import { describe, expect, it } from "vitest";
 import { scanHighlights, zyxdCodeBlocks } from "../../src/plugin/highlight";
+import { inPathBlock } from "../../src/plugin/language";
 
 function classes(doc: string): Map<string, string> {
   const map = new Map<string, string>();
@@ -68,5 +69,30 @@ describe("editor highlighting", () => {
   it("returns sorted, non-overlapping ranges (required by CodeMirror)", () => {
     const ranges = scanHighlights('g is group(x=1):\n  t is text("a\\"b", x=2) # c\nline(from=a, to=b)');
     for (let i = 1; i < ranges.length; i++) expect(ranges[i].from).toBeGreaterThanOrEqual(ranges[i - 1].to);
+  });
+});
+
+describe("a path written as steps (issue #41)", () => {
+  const DOC = "p is path(fill=none):\n  # first\n  start(0, 0)\n  line-relative(10, 0)\n  close\nstart(1, 2)\nq is path(\n    fill=red):\n  jump-to(5, 5)\n";
+
+  it("highlights the steps as keywords inside a path's block only", () => {
+    const at = (word: string, from = 0) => {
+      const i = DOC.indexOf(word, from);
+      return scanHighlights(DOC).find((t) => t.from === i)?.cls;
+    };
+    expect(at("start")).toBe("keyword");
+    expect(at("line-relative")).toBe("keyword");
+    expect(at("close")).toBe("keyword");
+    expect(at("start", DOC.indexOf("close"))).toBe("type");
+    expect(at("jump-to")).toBe("keyword");
+  });
+
+  it("knows which lines are in a path's block", () => {
+    const line = (word: string) => DOC.lastIndexOf("\n", DOC.indexOf(word)) + 1;
+    expect(inPathBlock(DOC, line("start(0"))).toBe(true);
+    expect(inPathBlock(DOC, line("close"))).toBe(true);
+    expect(inPathBlock(DOC, line("start(1"))).toBe(false);
+    expect(inPathBlock(DOC, line("jump-to"))).toBe(true);
+    expect(inPathBlock("g is group():\n  start(0, 0)\n", 14)).toBe(false);
   });
 });

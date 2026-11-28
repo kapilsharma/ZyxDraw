@@ -5,6 +5,7 @@ import type { Attr, Expr, SourceRange, Statement, SyntaxTree, Value } from "../s
 import { parse, parseCalculation } from "../syntax/parser";
 import { tokenize } from "../syntax/tokenizer";
 import { drawingPath, importCandidates, isLibraryPath } from "./library";
+import { compileSteps, stepSpec, type CompiledSteps } from "./path-steps";
 
 const KEYWORDS = new Set(["style", "canvas", "shape", "import", "export", "clip", "gradient", "layer"]);
 
@@ -55,6 +56,8 @@ export interface Shape {
   text?: string;
   points?: number[];
   pathData?: PathCommand[];
+  /** A path written as steps (issue #41): its compiled `d`, and where each number is written. */
+  steps?: CompiledSteps;
   stmt: Statement;
   /** The statement in the user's file (differs from `stmt` for custom shape instances). Used for edits. */
   source: Statement;
@@ -852,6 +855,10 @@ function resolveShape(
       diags.error(Code.Preview, "`preview()` is only for libraries (`.zyxdl`): it shows example uses of a library's shapes", stmt.keywordRange);
       return null;
     }
+    if (stepSpec(stmt.keyword)) {
+      diags.error(Code.InvalidStep, `\`${stmt.keyword}\` is a step of a path: write it in the indented block under \`path(...):\``, stmt.keywordRange);
+      return null;
+    }
     diags.error(
       Code.UnknownType,
       `Unknown shape type \`${stmt.keyword}\` (define it with \`${stmt.keyword} is shape(...):\` or import it)`,
@@ -949,8 +956,8 @@ function resolveShape(
     }
   }
 
-  // Children.
-  if (stmt.children.length > 0) {
+  // Children (a path's are its steps, read in `checkShape`).
+  if (stmt.children.length > 0 && type !== "path") {
     if (type !== "group") {
       diags.error(Code.ChildrenNotAllowed, `Only \`group\` can contain shapes, not \`${type}\``, stmt.range);
     } else {
@@ -1171,9 +1178,27 @@ function checkShape(shape: Shape, stmt: Statement, own: Map<string, RAttr>, diag
     }
 
     case "path": {
+      if (stmt.children.length > 0) {
+        // Written as steps (issue #41).
+        const written = attrs.get("d");
+        if (written) {
+          diags.error(Code.PathStepsAndD, "This path has both `d` and steps: keep one of them", written.range);
+          return false;
+        }
+        const compiled = compileSteps(stmt.children, diags, evaluate);
+        if (!compiled) return false;
+        const parsed = parsePath(compiled.d);
+        if (!parsed.ok) {
+          diags.error(Code.InvalidGeometry, parsed.error, stmt.range);
+          return false;
+        }
+        shape.steps = compiled;
+        shape.pathData = parsed.value;
+        return true;
+      }
       const d = str("d");
       if (d === undefined) {
-        diags.error(Code.MissingRequired, "`d` (path data) is missing", stmt.range);
+        diags.error(Code.MissingRequired, '`d` (path data) is missing: write `d="M ..."`, or the steps in an indented block under `path(...):`', stmt.range);
         return false;
       }
       const expanded = hasCalculations(d) ? expandCalculations(d) : { ok: true as const, value: d };

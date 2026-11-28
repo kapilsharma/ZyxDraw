@@ -296,7 +296,7 @@ function indentText(text: string, indent: string): string {
 }
 
 /** One level of indentation as the file writes it (a tab, or two spaces). */
-function indentUnit(src: string): string {
+export function indentUnit(src: string): string {
   const m = /\n([ \t]+)\S/.exec(src);
   if (!m) return "  ";
   return m[1].startsWith("\t") ? "\t" : m[1];

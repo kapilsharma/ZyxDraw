@@ -1,0 +1,226 @@
+# Every kind of path, written twice: with `d` (as in SVG) and as steps.
+# Each row draws the same shape both ways. The SVG gets the same `d` for both.
+# Steps are explained in docs/language.md, "Paths written as steps", and docs/paths.md.
+canvas(width=700, height=1960, background=white)
+
+open is style(fill=none, stroke=steelblue, stroke-width=3)
+filled is style(fill=lightblue, stroke=navy, stroke-width=2)
+handle is style(fill=none, stroke=lightgray, stroke-width=1, stroke-dasharray="4 3")
+label is style(font-size=15)
+note is style(font-size=12, fill=gray)
+
+heading is text("SVG letters", x=20, y=40, font-size=18)
+with_d is text("With d", x=260, y=40, font-size=18)
+with_steps is text("With steps", x=480, y=40, font-size=18)
+
+# ---- 1. M, L, Z: start, line, close ----
+t1 is text("M  L  Z", x=20, y=100, style=label)
+n1 is text("start, line, close", x=20, y=120, style=note)
+d1 is path(d="M 10 70 L 90 10 L 170 70 Z", style=filled, x=260, y=60)
+s1 is path(style=filled, x=480, y=60):
+  start(10, 70)
+  line(90, 10)
+  line(170, 70)
+  close
+
+# ---- 2. m, l, z: the same, relative ----
+# The first `m` of a path counts from the top-left, so it is a plain `start`.
+t2 is text("m  l  z", x=20, y=200, style=label)
+n2 is text("line-relative", x=20, y=220, style=note)
+d2 is path(d="m 10 70 l 80 -60 l 80 60 z", style=filled, x=260, y=160)
+s2 is path(style=filled, x=480, y=160):
+  start(10, 70)
+  line-relative(80, -60)
+  line-relative(80, 60)
+  close
+
+# ---- 3. H, V: only across, only up or down ----
+t3 is text("H  V", x=20, y=300, style=label)
+n3 is text("line(x=...), line(y=...)", x=20, y=320, style=note)
+d3 is path(d="M 10 70 H 60 V 10 H 120 V 70 H 170", style=open, x=260, y=260)
+s3 is path(style=open, x=480, y=260):
+  start(10, 70)
+  line(x=60)
+  line(y=10)
+  line(x=120)
+  line(y=70)
+  line(x=170)
+
+# ---- 4. h, v: the same, relative ----
+t4 is text("h  v", x=20, y=400, style=label)
+n4 is text("line-relative(x=...), (y=...)", x=20, y=420, style=note)
+d4 is path(d="M 10 70 h 40 v -60 h 40 v 60 h 40 v -60 h 40", style=open, x=260, y=360)
+s4 is path(style=open, x=480, y=360):
+  start(10, 70)
+  line-relative(x=40)
+  line-relative(y=-60)
+  line-relative(x=40)
+  line-relative(y=60)
+  line-relative(x=40)
+  line-relative(y=-60)
+  line-relative(x=40)
+
+# ---- 5. C: a curve with two handles ----
+# The dashed lines show the handles; they are not part of the path.
+t5 is text("C", x=20, y=500, style=label)
+n5 is text("curve(x, y, x1, y1, x2, y2)", x=20, y=520, style=note)
+h5 is path(d="M 10 70 L 40 0 M 170 70 L 140 0", style=handle, x=260, y=460)
+d5 is path(d="M 10 70 C 40 0 140 0 170 70", style=open, x=260, y=460)
+h5s is path(d="M 10 70 L 40 0 M 170 70 L 140 0", style=handle, x=480, y=460)
+s5 is path(style=open, x=480, y=460):
+  start(10, 70)
+  curve(170, 70, 40, 0, 140, 0)
+
+# ---- 6. c: the same, relative (values by name) ----
+t6 is text("c", x=20, y=600, style=label)
+n6 is text("curve-relative", x=20, y=620, style=note)
+d6 is path(d="M 10 40 c 20 -40 60 -40 80 0 c 20 40 60 40 80 0", style=open, x=260, y=560)
+s6 is path(style=open, x=480, y=560):
+  start(10, 40)
+  curve-relative(x=80, y=0, x1=20, y1=-40, x2=60, y2=-40)
+  curve-relative(x=80, y=0, x1=20, y1=40, x2=60, y2=40)
+
+# ---- 7. S: a smooth curve after a two-handle curve ----
+# Its first handle mirrors the last handle of the curve before.
+t7 is text("S", x=20, y=700, style=label)
+n7 is text("smooth(x, y, x2=..., y2=...)", x=20, y=720, style=note)
+d7 is path(d="M 10 40 C 20 0 70 0 90 40 S 160 80 170 40", style=open, x=260, y=660)
+s7 is path(style=open, x=480, y=660):
+  start(10, 40)
+  curve(90, 40, x1=20, y1=0, x2=70, y2=0)
+  smooth(170, 40, x2=160, y2=80)
+
+# ---- 8. s: the same, relative ----
+t8 is text("s", x=20, y=800, style=label)
+n8 is text("smooth-relative", x=20, y=820, style=note)
+d8 is path(d="M 10 40 c 10 -40 60 -40 80 0 s 70 40 80 0", style=open, x=260, y=760)
+s8 is path(style=open, x=480, y=760):
+  start(10, 40)
+  curve-relative(80, 0, 10, -40, 60, -40)
+  smooth-relative(80, 0, x2=70, y2=40)
+
+# ---- 9. Q: a curve with one handle ----
+t9 is text("Q", x=20, y=900, style=label)
+n9 is text("curve(x, y, hx=..., hy=...)", x=20, y=920, style=note)
+h9 is path(d="M 10 70 L 90 0 L 170 70", style=handle, x=260, y=860)
+d9 is path(d="M 10 70 Q 90 0 170 70", style=open, x=260, y=860)
+h9s is path(d="M 10 70 L 90 0 L 170 70", style=handle, x=480, y=860)
+s9 is path(style=open, x=480, y=860):
+  start(10, 70)
+  curve(170, 70, hx=90, hy=0)
+
+# ---- 10. q: the same, relative (4 values in order are x, y, hx, hy) ----
+t10 is text("q", x=20, y=1000, style=label)
+n10 is text("curve-relative(x, y, hx, hy)", x=20, y=1020, style=note)
+d10 is path(d="M 10 40 q 40 -40 80 0 q 40 40 80 0", style=open, x=260, y=960)
+s10 is path(style=open, x=480, y=960):
+  start(10, 40)
+  curve-relative(80, 0, 40, -40)
+  curve-relative(80, 0, 40, 40)
+
+# ---- 11. T: a smooth curve after a one-handle curve ----
+t11 is text("T", x=20, y=1100, style=label)
+n11 is text("smooth(x, y)", x=20, y=1120, style=note)
+d11 is path(d="M 10 40 Q 30 0 50 40 T 90 40 T 130 40 T 170 40", style=open, x=260, y=1060)
+s11 is path(style=open, x=480, y=1060):
+  start(10, 40)
+  curve(50, 40, hx=30, hy=0)
+  smooth(90, 40)
+  smooth(130, 40)
+  smooth(170, 40)
+
+# ---- 12. t: the same, relative ----
+t12 is text("t", x=20, y=1200, style=label)
+n12 is text("smooth-relative(x, y)", x=20, y=1220, style=note)
+d12 is path(d="M 10 40 q 20 -40 40 0 t 40 0 t 40 0 t 40 0", style=open, x=260, y=1160)
+s12 is path(style=open, x=480, y=1160):
+  start(10, 40)
+  curve-relative(40, 0, hx=20, hy=-40)
+  smooth-relative(40, 0)
+  smooth-relative(40, 0)
+  smooth-relative(40, 0)
+
+# ---- 13. A: arcs of a circle, all four ways ----
+# From left to right: the defaults (short way, clockwise), clockwise=no,
+# long=yes, and long=yes with clockwise=no.
+t13 is text("A", x=20, y=1300, style=label)
+n13 is text("arc(x, y, r=...), long, clockwise", x=20, y=1320, style=note)
+d13 is path(d="M 5 45 A 20 20 0 0 1 35 45 M 50 45 A 20 20 0 0 0 80 45 M 95 45 A 20 20 0 1 1 125 45 M 140 45 A 20 20 0 1 0 170 45", style=open, x=260, y=1260)
+s13 is path(style=open, x=480, y=1260):
+  start(5, 45)
+  arc(35, 45, r=20)
+  jump-to(50, 45)
+  arc(80, 45, r=20, clockwise=no)
+  jump-to(95, 45)
+  arc(125, 45, r=20, long=yes)
+  jump-to(140, 45)
+  arc(170, 45, r=20, long=yes, clockwise=no)
+
+# ---- 14. A: part of an ellipse, turned ----
+# rx and ry give an ellipse; `turn` turns it, in degrees. Here in order: x, y, rx, ry, turn.
+t14 is text("A (ellipse)", x=20, y=1400, style=label)
+n14 is text("arc(x, y, rx, ry, turn)", x=20, y=1420, style=note)
+d14 is path(d="M 10 60 A 90 35 -20 0 1 170 20 L 170 70 Z", style=filled, x=260, y=1360)
+s14 is path(style=filled, x=480, y=1360):
+  start(10, 60)
+  arc(170, 20, 90, 35, -20)
+  line(170, 70)
+  close
+
+# ---- 15. a: arcs, relative ----
+t15 is text("a", x=20, y=1500, style=label)
+n15 is text("arc-relative", x=20, y=1520, style=note)
+d15 is path(d="M 10 60 a 20 20 0 0 1 40 0 a 20 20 0 0 0 40 0 a 20 20 0 0 1 40 0 a 20 20 0 0 0 40 0", style=open, x=260, y=1460)
+s15 is path(style=open, x=480, y=1460):
+  start(10, 60)
+  arc-relative(40, 0, r=20)
+  arc-relative(40, 0, r=20, clockwise=no)
+  arc-relative(40, 0, r=20)
+  arc-relative(40, 0, r=20, clockwise=no)
+
+# ---- 16. M and m in the middle: a path with several parts ----
+# A `close` before `jump-to` closes the part before it. With fill-rule=evenodd, the
+# inner part cuts a hole. After `z`, a relative jump counts from where that part began.
+t16 is text("Z  M  /  z  m", x=20, y=1600, style=label)
+n16 is text("close, jump-to, jump-to-relative", x=20, y=1620, style=note)
+d16 is path(d="M 20 10 H 160 V 70 H 20 Z m 40 15 h 60 v 30 h -60 z", style=filled, fill-rule=evenodd, x=260, y=1560)
+s16 is path(style=filled, fill-rule=evenodd, x=480, y=1560):
+  start(20, 10)
+  line(x=160)
+  line(y=70)
+  line(x=20)
+  close
+  jump-to-relative(40, 15)
+  line-relative(x=60)
+  line-relative(y=30)
+  line-relative(x=-60)
+  close
+
+# ---- 17. An open path with several parts ----
+# Without `close` a part stays open; the end of the block does not close it.
+t17 is text("M ... M (open)", x=20, y=1700, style=label)
+n17 is text("no close: the parts stay open", x=20, y=1720, style=note)
+d17 is path(d="M 10 20 Q 90 0 170 20 M 10 45 Q 90 25 170 45 M 10 70 Q 90 50 170 70", style=open, x=260, y=1660)
+s17 is path(style=open, x=480, y=1660):
+  start(10, 20)
+  curve(170, 20, hx=90, hy=0)
+  jump-to(10, 45)
+  curve(170, 45, hx=90, hy=25)
+  jump-to(10, 70)
+  curve(170, 70, hx=90, hy=50)
+
+# ---- 18. Short ways of writing d ----
+# In `d`, a letter can be left out when it repeats, commas can part numbers, and
+# spaces can be left out. Steps always write one step per line.
+t18 is text("L L L / 10,70", x=20, y=1800, style=label)
+n18 is text("repeated letters, commas", x=20, y=1820, style=note)
+# After 70, we have small "L" followed by 40, not 140 
+d18 is path(d="M10,70 L50,10 90,70 l40,-60 40,60", style=open, x=260, y=1760)
+s18 is path(style=open, x=480, y=1760):
+  start(10, 70)
+  line(50, 10)
+  line(90, 70)
+  line-relative(40, -60)
+  line-relative(40, 60)
+
+footer is text("Right-click a path and choose Write as steps or Write as d to switch between the two.", x=20, y=1920, style=note)

@@ -6,11 +6,15 @@ frame is style(fill=#CCC)
 
 # Left panel
 left_panel is rect(x=10, y=10, width=250, height=580, style=frame)
-text1 is text("Left panel (code)", x=30, y=30, font-size=20)
+left_text is text("Left panel (code)", x=30, y=30, font-size=20)
 
 # Drawing area
 drawing_area is rect(x=270, y=10, width=478, height=400, style=frame)
-text2 is text("Drawing area", x=299, y=33, font-size=20)
+drawing_text is text("Drawing area", x=299, y=33, font-size=20)
 
 # Attributes
 attributes_area is rect(x=270, y=420, width=478, height=170, style=frame)
+
+right is group():
+  right_panel is rect(x=761, y=10, width=228, height=580, style=frame)
+  right_text is text("Right panel (code)", x=774, y=21, font-size=20)

@@ -110,24 +110,24 @@ Some handles have no numbers of their own, because SVG works them out:
 `d` is short but hard to read. ZyxDraw explains it without changing it:
 
 - **In the text:** hover over `d`. A numbered list explains each step, for example "1. Start at 100, 100", "2. Straight line to 150, 50", "3. Close the shape".
-- **In the Attributes:** a selected path shows **Steps of d**, with a small field for each number. Changing one changes only that number.
+- **In the Attributes:** a selected path shows **Steps of d**, with a small field for each number, named as in [steps](#writing-a-path-as-steps) (`x`, `x1`, `hx`, `rx`, `clockwise`, ...). Changing one changes only that number.
 - **In the drawing:** hovering a step in either list highlights that part of the path.
 
 ### The letters in `d`
 
 Each step starts with a letter, followed by its numbers. A capital letter means "go to this point"; a small letter means "go this far from where you are" (`l 50,0` is "50 to the right"). Pairs are `x,y`: `x` grows to the right, `y` grows **down**.
 
-| Letter | Means | Numbers |
-| ------ | ----- | ------- |
-| `M` | Start (or jump) here | the point |
-| `L` | Straight line to | the point |
-| `H` / `V` | Straight line across / up or down to | one number: `x` / `y` |
-| `C` | Curve to | first handle, second handle, the point |
-| `S` | Smooth curve to: its first handle mirrors the one before | second handle, the point |
-| `Q` | Curve with one handle to | the handle, the point |
-| `T` | Smooth curve with one handle: it mirrors the one before | the point |
-| `A` | Arc (part of a circle or an ellipse) to | 7 numbers, below |
-| `Z` | Close the shape: a straight line back to the start | none |
+| Letter | Means | Numbers | As a step |
+| ------ | ----- | ------- | --------- |
+| `M` | Start (or jump) here | the point | `start` (or `jump-to`) |
+| `L` | Straight line to | the point | `line(x, y)` |
+| `H` / `V` | Straight line across / up or down to | one number: `x` / `y` | `line(x=...)` / `line(y=...)` |
+| `C` | Curve to | first handle, second handle, the point | `curve(x, y, x1, y1, x2, y2)` |
+| `S` | Smooth curve to: its first handle mirrors the one before | second handle, the point | `smooth(x, y, x2=..., y2=...)` |
+| `Q` | Curve with one handle to | the handle, the point | `curve(x, y, hx=..., hy=...)` |
+| `T` | Smooth curve with one handle: it mirrors the one before | the point | `smooth(x, y)` |
+| `A` | Arc (part of a circle or an ellipse) to | 7 numbers, below | `arc(x, y, r=...)` |
+| `Z` | Close the shape: a straight line back to the start | none | `close` |
 
 ### The 7 numbers of an arc
 
@@ -145,6 +145,24 @@ A  50 50   0   0   1   120,100
 | end point | Where the arc ends |
 
 A circle through two points can be drawn four ways: short or long, clockwise or anticlockwise. `large` and `sweep` pick one. To flip an arc to the other side of its line, change `sweep` (`0` ↔ `1`), or drag the arc across in the drawing.
+
+## Writing a path as steps
+
+Instead of `d`, a path can be written as steps, one per line, in an indented block. Each step says what it does:
+
+```zyxd
+wave is path(fill=none, stroke=black):
+  start(20, 100)
+  curve(100, 40, x1=20, y1=100, x2=70, y2=40)
+  smooth(180, 100, x2=180, y2=100)
+```
+
+This is the path at the top of this page. The table above gives the step for each letter, and the [language reference](language.md#paths-written-as-steps) has the details, such as `close` and `-relative` steps.
+
+- **Switching:** right-click a path in the drawing area and choose **Write as steps**, or **Write as d** to go back. The drawing does not change.
+- **In the text:** hover over a step to read it in plain words; it is highlighted in the drawing.
+- **In the Attributes:** the **Steps** section has a field for each number; a change edits only that number in its step.
+- **In the drawing:** drag a point and only its step's numbers change. To add or delete points, bend a side, make a point smooth or a corner, or draw on from an end, use **Write as d** first. Drawing with the pen or the curve tool writes `d`.
 
 ## Good to know
 

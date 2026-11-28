@@ -113,6 +113,12 @@ function parseStatement(tokens: Token[], indent: number, source: string, diags: 
     return null;
   }
 
+  // `close`, a step of a path written as steps, is a bare word like SVG's `Z` (issue #41). Outside
+  // a path it is reported when the drawing is resolved.
+  if (tokens.length === 1 && first.text === "close") {
+    return { kind: "shape", keyword: "close", keywordRange: whole, args: [], attrs: [], hasBlock: false, children: [], range: whole, blockRange: whole, indent };
+  }
+
   // `name is type(...)`, or just `type(...)` without a name.
   let name: string | undefined;
   let nameRange: SourceRange | undefined;

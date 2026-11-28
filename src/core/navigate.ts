@@ -48,8 +48,9 @@ export function definitionAt(tree: SyntaxTree, offset: number): DefinitionLink |
   if (!stmt) return null;
   const [s, ancestors] = stmt;
 
-  // `service web(...)`: the custom shape's definition.
-  if (s.kind === "shape" && inside(s.keywordRange)) {
+  // `service web(...)`: the custom shape's definition. In a path's block, the word is a step (issue #41).
+  const inPath = ancestors[ancestors.length - 1]?.keyword === "path";
+  if (s.kind === "shape" && inside(s.keywordRange) && !inPath) {
     const target = shapeDefinition(top, s.keyword);
     return target ? { range: s.keywordRange, target } : null;
   }

@@ -47,14 +47,14 @@ describe("steps in plain words", () => {
     const d = "M 1,2 C 3,4 5,6 7,8 a 9 10 11 0 1 12,13";
     const steps = pathSteps(d)!;
     expect(steps[1].numbers.map((n) => [n.label, d.slice(n.start, n.end)])).toEqual([
-      ["handle 1 x", "3"],
-      ["handle 1 y", "4"],
-      ["handle 2 x", "5"],
-      ["handle 2 y", "6"],
+      ["x1", "3"],
+      ["y1", "4"],
+      ["x2", "5"],
+      ["y2", "6"],
       ["x", "7"],
       ["y", "8"],
     ]);
-    expect(steps[2].numbers.map((n) => n.label)).toEqual(["radius x", "radius y", "turn", "long way (1) or short (0)", "clockwise (1) or not (0)", "x", "y"]);
+    expect(steps[2].numbers.map((n) => n.label)).toEqual(["rx", "ry", "turn", "long", "clockwise", "x", "y"]);
     expect(steps.map((s) => s.command)).toEqual(["M", "C", "a"]);
   });
 
@@ -91,6 +91,6 @@ describe("in the drawing", () => {
     expect(applyEdits(src, setPathNumber(t, "p", 1, "5").edits)).toContain('d="M 10 5 L 50 10"');
     expect(setPathNumber(t, "p", 1, "five").notices[0]).toMatch(/not a number/);
     const arc = CANVAS + 'p is path(d="M 0 0 A 5 5 0 0 1 10 0", fill=none)\n';
-    expect(setPathNumber({ source: arc, scene: compile(arc).scene }, "p", 5, "2").notices[0]).toMatch(/write 1 or 0/);
+    expect(setPathNumber({ source: arc, scene: compile(arc).scene }, "p", 5, "2").notices[0]).toMatch(/write 1 \(yes\) or 0 \(no\)/);
   });
 });

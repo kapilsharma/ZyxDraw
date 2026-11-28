@@ -430,7 +430,7 @@ function fmtPx(v: number): string {
   return Object.is(r, -0) ? "0" : String(r);
 }
 
-function lineStart(src: string, pos: number): number {
+export function lineStart(src: string, pos: number): number {
   return src.lastIndexOf("\n", pos - 1) + 1;
 }
 
