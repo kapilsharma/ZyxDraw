@@ -200,7 +200,7 @@ interface ArcFlags {
 }
 
 /** One segment as written (its command, where it is in the text) and what it draws (absolute). */
-interface Seg {
+export interface Seg {
   /** The command that applies, e.g. `l` for a pair written after `m`. */
   letter: string;
   upper: string;
@@ -228,7 +228,7 @@ interface Seg {
 const ARGS: Record<string, number> = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, A: 7, Z: 0 };
 
 /** Reads path text into segments, or null when it is not a path these edits understand. */
-function parseSegs(d: string): Seg[] | null {
+export function parseSegs(d: string): Seg[] | null {
   const re = /([MmLlHhVvCcSsQqTtAaZz])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)|([\s,]+)|(.)/g;
   const tokens: { cmd?: string; value?: number; start: number; end: number }[] = [];
   let m: RegExpExecArray | null;
@@ -931,11 +931,11 @@ const LABELS: Record<string, string[]> = {
   L: ["x", "y"],
   H: ["x"],
   V: ["y"],
-  C: ["handle 1 x", "handle 1 y", "handle 2 x", "handle 2 y", "x", "y"],
-  S: ["handle x", "handle y", "x", "y"],
-  Q: ["handle x", "handle y", "x", "y"],
+  C: ["x1", "y1", "x2", "y2", "x", "y"],
+  S: ["x2", "y2", "x", "y"],
+  Q: ["hx", "hy", "x", "y"],
   T: ["x", "y"],
-  A: ["radius x", "radius y", "turn", "long way (1) or short (0)", "clockwise (1) or not (0)", "x", "y"],
+  A: ["rx", "ry", "turn", "long", "clockwise", "x", "y"],
   Z: [],
 };
 

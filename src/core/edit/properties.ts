@@ -133,6 +133,8 @@ export function propertySheet(target: PropertyTarget, path: string | null): Prop
   const aliases = shape.spec.aliases;
   for (const [name, spec] of Object.entries(shape.spec.attrs)) {
     if (params.has(name)) continue;
+    // A path written as steps has no `d` to fill in: its steps are in the Steps section (issue #41).
+    if (name === "d" && shape.steps) continue;
     // Instances are groups; their width / height come from parameters when the shape has them.
     const written = stmt.attrs.find((a) => (aliases[a.name] ?? a.name) === name);
     const effective = shape.attrs.get(name);

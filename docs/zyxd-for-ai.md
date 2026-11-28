@@ -54,7 +54,7 @@ Optional, written first, at most once.
 | `line` | `x1`, `y1`, `x2`, `y2`, or `from` / `to` shapes; `arrow` = `none`, `start`, `end`, `both`; `label` | `line(from=a, to=b, arrow=end, label="SQL")` |
 | `polyline` | `points="x,y x,y ..."` (open), `radius` | `polyline(points="0,0 50,40 100,0", fill=none, stroke=black)` |
 | `polygon` | `points="x,y x,y ..."` (closed), `radius` | `polygon(points="50,0 100,80 0,80", fill=orange)` |
-| `path` | `d` = SVG path commands: `M L H V C S Q T A Z`; lower case means relative to the previous point | `path(d="M 0 40 C 30 0 70 0 100 40", fill=none, stroke=red)` |
+| `path` | `d` = SVG path commands: `M L H V C S Q T A Z`; lower case means relative to the previous point. Or steps instead of `d`: see section 10 | `path(d="M 0 40 C 30 0 70 0 100 40", fill=none, stroke=red)` |
 | `text` | the words first, in quotes; `x`, `y` (top-left), `font-size`, `font-weight`, `align` = `start`, `middle`, `end` | `text("Hello", x=50%, y=20, font-size=18, align=middle)` |
 | `group` | `x`, `y`, and `width` / `height` if children use `%`; children indented | see section 5 |
 | `layer` | a top-level group for one part of the drawing | see section 5 |
@@ -275,6 +275,20 @@ step(year="2026", note="Libraries", x=380, y=80)
 step(year="2027", note="1.0", x=520, y=80)
 ```
 
+**A path written as steps** (the same as `d`, easier to read and fix). One step per indented line: `start(x, y)` first, then `line(x, y)` (`line(x=...)` / `line(y=...)` for across / up or down), `curve(x, y, x1=, y1=, x2=, y2=)` (two handles) or `curve(x, y, hx=, hy=)` (one), `smooth(x, y)`, `arc(x, y, r=, long=no, clockwise=yes)`, `jump-to(x, y)` for a new part, and a bare `close` to close. Add `-relative` (`line-relative`) for SVG's lower-case commands.
+
+```zyxd
+canvas(width=220, height=200, background=white)
+
+shield is path(fill=lightblue, stroke=navy, stroke-width=3):
+  start(20, 20)
+  line(180, 20)
+  line(y=100)
+  curve(100, 180, hx=180, hy=160)
+  smooth(20, 100)
+  close
+```
+
 **Simple wireframe:**
 
 ```zyxd
@@ -309,6 +323,10 @@ phone is group(x=20, y=10, width=280, height=400):
 | `text("Hi", width=100)` | `text("Hi", x=50, align=middle)` | text has no `width`; center it with `align=middle` at its middle `x` |
 | two shapes with the same name side by side | unique names | names must be unique among siblings |
 | using a library the user does not have | a custom shape in the drawing | an import of a missing library is an error |
+| a path with both `d` and steps | one of them | a path is written one way |
+| `close()` in a path's steps | `close` | `close` is a bare word, like `Z` |
+| `line(10)` in a path's steps | `line(x=10)` or `line(y=10)` | one value without a name is not clear |
+| steps without `close` for a closed shape | `close` as the last step | the end of the block does not close the path |
 
 ## 12. Checklist before you answer
 

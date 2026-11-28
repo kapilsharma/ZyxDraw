@@ -27,6 +27,62 @@ It will produce the following drawing:
 
 ![Shapes](../images/004_shapes.png)
 
+## Paths written as steps
+
+A `path` draws with `d`, the same short text as in SVG: `d="M 20 20 L 180 20 L 100 160 Z"`. It can also be written as steps, one per line, in an indented block under `path(...):`. Each step says what it does:
+
+```text
+shield is path(fill=lightblue, stroke=navy, stroke-width=3):
+  start(20, 20)
+  line(180, 20)
+  line(y=100)
+  curve(100, 180, hx=180, hy=160)
+  smooth(20, 100)
+  close
+```
+
+This is the same path as `d="M 20 20 L 180 20 V 100 Q 180 160 100 180 T 20 100 Z"`, and the SVG gets exactly that `d`. A path has `d` or steps, never both.
+
+| Step | What it draws | SVG |
+| ---- | ------------- | --- |
+| `start(x, y)` | The first point. Every path written as steps begins with it, and only the first step is `start`. | `M` |
+| `jump-to(x, y)` | Begins a new part of the path at x, y, without drawing a line to it. | `M` |
+| `line(x, y)` | A straight line to x, y. `line(x=...)` goes only across, `line(y=...)` only up or down. | `L`, `H`, `V` |
+| `curve(x, y, x1, y1, x2, y2)` | A curve to x, y, pulled by two handles: x1, y1 near the start and x2, y2 near the end. | `C` |
+| `curve(x, y, hx, hy)` | A curve to x, y, pulled by one handle, hx, hy. | `Q` |
+| `smooth(x, y, x2=..., y2=...)` | A curve that goes on smoothly from the curve before: its first handle mirrors the last handle of that curve. | `S` |
+| `smooth(x, y)` | The same after a one-handle curve: its handle mirrors the one before. | `T` |
+| `arc(x, y, r=...)` | Part of a circle to x, y. `rx` and `ry` instead of `r` give part of an ellipse, and `turn` turns it (in degrees). `long=yes` takes the long way round, and `clockwise=no` goes the other way. | `A` |
+| `close` | A straight line back to where this part began. | `Z` |
+
+- **Values** are written in order, as in the table (`line(180, 20)`), or by name (`line(x=180, y=20)`), or both: `curve(100, 180, hx=180, hy=160)`. The values are plain numbers, as in `d`. Inside a custom shape they can be calculations with its parameters, like `line(size / 2, 0)`.
+- **An arc** goes clockwise and the short way unless told otherwise: `long=no` and `clockwise=yes` are the defaults. `arc(180, 100, 80)` is the same as `arc(180, 100, r=80)`.
+- **Relative steps:** add `-relative` to a step (`line-relative`, `curve-relative`, `smooth-relative`, `arc-relative`, `jump-to-relative`) and its numbers count from where the step starts instead of from the top-left: `line-relative(50, 0)` goes 50 to the right. Handles count from the start of the step too. These are SVG's lower-case commands (`l`, `c`, ...).
+
+### `close` and open paths
+
+`close` is written on its own, without `( )`, like `Z` in SVG. It draws a straight line back to the point where the part began (the `start`, or the last `jump-to`), and joins the two ends neatly.
+
+The end of the indented block does **not** close the path. A path without `close` stays open: a wave, a curved arrow, or a line with several parts, like this one with two:
+
+```text
+streams is path(fill=none, stroke=steelblue, stroke-width=3):
+  start(0, 20)
+  curve(120, 20, hx=60, hy=0)
+  jump-to(0, 60)
+  curve(120, 60, hx=60, hy=40)
+```
+
+Each part can be closed on its own: a `close` before a `jump-to` closes the part before it. Two closed parts make a ring when the path has `fill-rule=evenodd`.
+
+An open path is still filled (as in SVG): add `fill=none` to see only its line.
+
+### Switching between `d` and steps
+
+In the drawing area, right-click a path and choose **Write as steps** to turn its `d` into steps, or **Write as d** to turn its steps back into `d`. The drawing stays the same, and the numbers stay as they are written. Paths with calculations cannot be switched. Comments inside the block of steps are not kept when it becomes `d`.
+
+The points of a path written as steps can be dragged in the drawing area: only the step's own numbers change. Adding and deleting points, bending a side, making a point smooth or a corner, and drawing on from an end work on paths written with `d` for now: use **Write as d** first.
+
 ## Position and size
 
 Example code

@@ -10,6 +10,8 @@ import {
   bendSide,
   bentPointsText,
   canAddPoints,
+  canWriteAsD,
+  canWriteAsSteps,
   continuePath,
   copyText,
   deletePoint,
@@ -64,6 +66,8 @@ import {
   type Reorder,
   type Scene,
   type Shape,
+  writeAsD,
+  writeAsSteps,
 } from "../core";
 import { colorToHex, hasSyntaxErrors } from "./attributes";
 import type { Guide } from "./settings";
@@ -1810,6 +1814,9 @@ export class DrawingEditor {
     }
     menu.addSeparator();
     if (!many) menu.addItem((i) => i.setTitle("Show in text").setIcon("file-code").onClick(() => this.host.revealInSource(path)));
+    // A path written with `d` or as steps can be rewritten the other way (issue #41).
+    if (!many && canWriteAsSteps(shape)) menu.addItem((i) => i.setTitle("Write as steps").setIcon("list-ordered").onClick(() => this.run((t) => writeAsSteps(t, path))));
+    if (!many && canWriteAsD(shape)) menu.addItem((i) => i.setTitle("Write as d").setIcon("code").onClick(() => this.run((t) => writeAsD(t, path))));
     menu.addItem((i) => i.setTitle("Delete").setIcon("trash").onClick(() => this.deleteSelected()));
     menu.showAtMouseEvent(e);
   }

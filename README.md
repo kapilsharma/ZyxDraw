@@ -79,6 +79,7 @@ Paste the answer into a `.zyxd` file and the drawing appears. Then drag shapes i
 | ------- | ----------------- |
 | [Editing in the drawing area](docs/editing.md#editing-in-the-drawing-area) | Select, move, resize, edit points, group, copy and paste, draw lines, polygons and curves, snap to a grid, undo |
 | [Drawing paths](docs/paths.md) | Lines and shapes with curves and arcs: the pen, the curve tool (click points, get a smooth curve), changing a path by dragging, and what the numbers in `d` mean |
+| [Paths written as steps](docs/language.md#paths-written-as-steps) | A path written one step per line (`start`, `line`, `curve`, `arc`, `close`) instead of SVG's short `d`, so it reads like what it draws. Right-click a path to switch between the two |
 | Text editor | Syntax colors, autocomplete, problems underlined with the reason, `Ctrl`+click to go to a definition |
 | [Attributes, Layers and Help](docs/editing.md#getting-started) | The **Attributes** of the selected shape in the bottom panel, and the **Layers** and **Help** tabs in the right panel. **Help** explains the tool in use |
 | [Custom shapes and libraries](docs/language.md#custom-shapes-and-libraries) | Shapes with parameters, kept in `.zyxdl` library files and shared by many drawings. [Ready-made libraries](library/README.md) included |

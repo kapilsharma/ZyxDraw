@@ -66,6 +66,10 @@ export const Code = {
   Export: "ZYX126",
   /** `preview():` in a drawing, twice, with a built-in shape or a position inside (issue #23). */
   Preview: "ZYX127",
+  /** A path with both `d` and steps in a block (issue #41). */
+  PathStepsAndD: "ZYX128",
+  /** A step of a path that is unknown, in the wrong place, or written wrongly (issue #41). */
+  InvalidStep: "ZYX129",
 
   UnknownShape: "ZYX201",
   PositionConflict: "ZYX202",

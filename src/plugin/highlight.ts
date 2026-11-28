@@ -8,7 +8,7 @@
  */
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import { Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewUpdate } from "@codemirror/view";
-import { SHAPES } from "../core";
+import { SHAPES, STEP_NAMES } from "../core";
 
 export type TokenClass = "keyword" | "type" | "def" | "property" | "string" | "number" | "atom" | "comment" | "operator" | "variable";
 
@@ -19,6 +19,8 @@ export interface HighlightRange {
 }
 
 const KEYWORDS = new Set(["style", "canvas", "shape", "clip", "gradient", "stop", "import", "export", "from", "is", "layer", "preview", ...Object.keys(SHAPES)]);
+/** The steps of a path written as steps (issue #41): keywords in a path's block only. */
+const STEPS = new Set(STEP_NAMES);
 /** `name is type(`: the word at the start of a line is a name when `is` follows it. */
 const IS_FOLLOWS = /[ \t]+is\b/y;
 
@@ -40,6 +42,9 @@ export function scanHighlights(text: string): HighlightRange[] {
   let expectIs = false;
   let expectType = false;
   let afterEq = false;
+  /** Indent of the `path` line whose block the next lines may be in, and of the current line. */
+  let pathIndent: number | null = null;
+  let lineIndent = 0;
   let i = 0;
 
   const match = (re: RegExp): string | null => {
@@ -84,13 +89,17 @@ export function scanHighlights(text: string): HighlightRange[] {
       afterEq = false;
       if (depth === 0 && atStart) {
         atStart = false;
+        lineIndent = i - (text.lastIndexOf("\n", i - 1) + 1);
+        if (pathIndent !== null && lineIndent <= pathIndent) pathIndent = null;
+        const inPath = pathIndent !== null;
         IS_FOLLOWS.lastIndex = i + m.length;
         if (IS_FOLLOWS.test(text)) {
           expectIs = true;
           push(m.length, "def");
         } else {
           listLine = m === "import" || m === "export";
-          push(m.length, KEYWORDS.has(m) ? "keyword" : "type");
+          if (m === "path") pathIndent = lineIndent;
+          push(m.length, KEYWORDS.has(m) || (inPath && STEPS.has(m)) ? "keyword" : "type");
         }
       } else if (depth === 0 && expectIs && m === "is") {
         expectIs = false;
@@ -98,6 +107,7 @@ export function scanHighlights(text: string): HighlightRange[] {
         push(m.length, "keyword");
       } else if (depth === 0 && expectType) {
         expectType = false;
+        if (m === "path") pathIndent = lineIndent;
         push(m.length, KEYWORDS.has(m) ? "keyword" : "type");
       } else if (depth === 0 && listLine) {
         if (m === "from") afterFrom = true;

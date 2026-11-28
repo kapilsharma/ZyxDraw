@@ -681,20 +681,25 @@ export class ZyxView extends TextFileView {
         return {
           pos,
           above: true,
-          create: () => ({ dom: this.stepsList(found.path, found.steps), destroy: () => this.drawing?.highlightStep(null, null) }),
+          create: () => ({ dom: this.stepsList(found.path, found.steps, found.first, found.asSteps), destroy: () => this.drawing?.highlightStep(null, null) }),
         };
       },
       { hideOnChange: true },
     );
   }
 
-  /** The numbered list of a path's steps, for the hover in the left panel. */
-  private stepsList(path: string, steps: PathStep[]): HTMLElement {
+  /**
+   * The numbered list of a path's steps, for the hover in the left panel. `first`: the number of
+   * the first step shown; `asSteps`: one step of a path written as steps (issue #41).
+   */
+  private stepsList(path: string, steps: PathStep[], first: number, asSteps: boolean): HTMLElement {
     const MAX = 40;
     const dom = createDiv({ cls: "zyxdraw-steps-tip" });
-    dom.createDiv({ cls: "zyxdraw-steps-title", text: "Steps of d" });
-    const list = dom.createEl("ol", { cls: "zyxdraw-steps" });
-    steps.slice(0, MAX).forEach((s, i) => {
+    dom.createDiv({ cls: "zyxdraw-steps-title", text: asSteps ? `Step ${first + 1}` : "Steps of d" });
+    const list = dom.createEl("ol", { cls: "zyxdraw-steps", attr: { start: String(first + 1) } });
+    if (asSteps) this.drawing?.highlightStep(path, first);
+    steps.slice(0, MAX).forEach((s, k) => {
+      const i = first + k;
       const li = list.createEl("li", { text: s.words });
       li.addEventListener("mouseenter", () => this.drawing?.highlightStep(path, i));
       li.addEventListener("mouseleave", () => this.drawing?.highlightStep(null, null));
